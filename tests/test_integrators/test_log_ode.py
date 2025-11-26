@@ -18,7 +18,7 @@ def _so3_generators() -> jax.Array:
     return jnp.stack([A1, A2, A3], axis=0)  # [3, 3, 3]
 
 
-def test_logode_zero_control_identity() -> None:
+def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
     """With zero coefficients, log-ODE should return the same normalized state."""
     A: jax.Array = _so3_generators()
     depth: int = 2
@@ -36,7 +36,7 @@ def test_logode_zero_control_identity() -> None:
     assert jnp.allclose(y_next, y0, rtol=1e-7)
 
 
-def test_logode_linear_1d_matches_matrix_exponential() -> None:
+def test_lyndon_log_ode_euclidean_linear_matches_matrix_exponential() -> None:
     """In 1D with depth=1, log-ODE equals exp(Δ A) @ y0."""
     # Single generator in R^2: 90-degree rotation generator
     A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
@@ -60,7 +60,7 @@ def test_logode_linear_1d_matches_matrix_exponential() -> None:
     assert jnp.allclose(y_logode, expected, rtol=1e-6)
 
 
-def test_spherical_brownian_properties_combined() -> None:
+def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
     """Combined check for spherical Brownian properties with skew-symmetric generators.
     - Norm preservation along trajectory
     - Small-time tangent-plane mean ~ 0 and covariance ~ t * I
@@ -157,7 +157,9 @@ def test_spherical_brownian_properties_combined() -> None:
 
 
 @pytest.mark.parametrize("brownian_path_fixture", [(1, 200)], indirect=True)
-def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Array) -> None:
+def test_lyndon_log_ode_euclidean_segmentation_invariance(
+    brownian_path_fixture: jax.Array,
+) -> None:
     """Sequential windowed application equals whole-interval application for commuting case (dim=1)."""
     W: jax.Array = brownian_path_fixture  # shape (N+1, 1)
     depth: int = 1  # depth=1 and dim=1 => commuting flows so product of exponentials equals single exponential
@@ -188,7 +190,7 @@ def test_logode_brownian_segmentation_invariance(brownian_path_fixture: jax.Arra
 
 
 @pytest.mark.parametrize("brownian_path_fixture", [(3, 300)], indirect=True)
-def test_logode_brownian_segmentation_invariance_commuting_high_depth(
+def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     brownian_path_fixture: jax.Array,
 ) -> None:
     """Higher depth and multi-dim path on Euclidean (commuting diagonal generators).

@@ -155,8 +155,10 @@ def test_form_lyndon_brackets_reproducibility() -> None:
     result1 = form_lyndon_brackets(A, depth=2)
     result2 = form_lyndon_brackets(A, depth=2)
 
-    # Results should match exactly
-    np.testing.assert_allclose(result1, result2, rtol=1e-10)
+    # Results should match exactly level-by-level
+    assert len(result1) == len(result2)
+    for level1, level2 in zip(result1, result2):
+        np.testing.assert_allclose(level1, level2, rtol=1e-10)
 
 
 def test_form_lyndon_brackets_gradients() -> None:

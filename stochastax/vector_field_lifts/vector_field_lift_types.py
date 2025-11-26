@@ -6,7 +6,7 @@ import jax
 ButcherDifferentials = NewType("ButcherDifferentials", jax.Array)
 LieButcherDifferentials = NewType("LieButcherDifferentials", jax.Array)
 
-# Bracket matrices are now per-degree lists, mirroring signature inputs.
+# Bracket matrices are per-degree lists, mirroring signature inputs.
 # Each entry k stores a [Nk, n, n] stack of matrices for degree k+1.
 LyndonBrackets = NewType("LyndonBrackets", list[jax.Array])
 BCKBrackets = NewType("BCKBrackets", list[jax.Array])

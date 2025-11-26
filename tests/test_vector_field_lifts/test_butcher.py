@@ -115,13 +115,21 @@ def test_lie_butcher_identity_projection_matches_butcher() -> None:
     f = linear_field(A)
 
     parents = [chain_parent(3), binary_root_parent(), [-1]]
-    forest_mkw = MKWForest(forest_from_parents(parents))
-    forest_bck = BCKForest(forest_from_parents(parents))
 
     project = identity_projection  # type: ignore[assignment]
 
-    out_lb = form_lie_butcher_differentials(f, x, forest_mkw, project)
-    out_b = form_butcher_differentials(f, x, forest_bck)
+    # Construct forests per shape (parent length) to respect the Forest contract,
+    # then concatenate outputs for comparison.
+    outs_lb = []
+    outs_b = []
+    for parent in parents:
+        forest_mkw = MKWForest(forest_from_parents([parent]))
+        forest_bck = BCKForest(forest_from_parents([parent]))
+        outs_lb.append(form_lie_butcher_differentials(f, x, forest_mkw, project))
+        outs_b.append(form_butcher_differentials(f, x, forest_bck))
+
+    out_lb = jnp.concatenate(outs_lb, axis=0)
+    out_b = jnp.concatenate(outs_b, axis=0)
     np.testing.assert_allclose(np.asarray(out_lb), np.asarray(out_b), rtol=1e-7, atol=1e-8)
 
 
@@ -134,8 +142,15 @@ def test_lie_butcher_tangent_projection_property() -> None:
         return sphere_tangent_projection(y, v)
 
     parents = [chain_parent(2), binary_root_parent(), [-1]]
-    forest = MKWForest(forest_from_parents(parents))
-    out = form_lie_butcher_differentials(f, x, forest, project_to_tangent)
+
+    # Build forests per shape and concatenate outputs to respect Forest's
+    # requirement that all trees in a batch share the same number of nodes.
+    outs = []
+    for parent in parents:
+        forest = MKWForest(forest_from_parents([parent]))
+        outs.append(form_lie_butcher_differentials(f, x, forest, project_to_tangent))
+
+    out = jnp.concatenate(outs, axis=0)
     out_arr = np.asarray(out)
     # Check tangency for each tree result
     dots = out_arr @ np.asarray(x)
