@@ -20,7 +20,7 @@ def _unrank_base_d(index: int, num_digits: int, base: int) -> list[int]:
     return digits
 
 
-def compute_mkw_brackets_by_degree(
+def form_mkw_brackets(
     V: list[Callable[[jax.Array], jax.Array]],
     x: jax.Array,
     forests_by_degree: list[MKWForest],

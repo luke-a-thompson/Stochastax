@@ -20,7 +20,7 @@ def _unrank_base_d(index: int, num_digits: int, base: int) -> list[int]:
     return digits
 
 
-def compute_bck_brackets_by_degree(
+def form_bck_brackets(
     V: list[Callable[[jax.Array], jax.Array]],
     x: jax.Array,
     forests_by_degree: list[BCKForest],

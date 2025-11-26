@@ -13,7 +13,7 @@ from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
 from stochastax.hopf_algebras.elements import GroupElement
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
-from stochastax.vector_field_lifts.mkw_lift import compute_mkw_brackets_by_degree
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
 
 
 def _so3_generators() -> jax.Array:
@@ -85,7 +85,7 @@ def main() -> None:
     A = _so3_generators()
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.0, 0.0, 1.0])
-    mkw_brackets = compute_mkw_brackets_by_degree(V, x0, forests, _project_to_tangent)
+    mkw_brackets = form_mkw_brackets(V, x0, forests, _project_to_tangent)
 
     # words_by_len placeholder: use forests' parent arrays for filtering nonempty levels
     _ = [f.parent for f in forests]  # unused after API change
