@@ -5,19 +5,7 @@ from typing import Callable
 from stochastax.hopf_algebras.hopf_algebra_types import BCKForest
 from stochastax.vector_field_lifts.vector_field_lift_types import BCKBrackets
 from stochastax.vector_field_lifts.butcher import _build_children_from_parent
-
-
-def _unrank_base_d(index: int, num_digits: int, base: int) -> list[int]:
-    """
-    Convert a nonnegative integer to base-`base` digits of length `num_digits`
-    with most-significant digit first.
-    """
-    digits: list[int] = [0] * num_digits
-    x = int(index)
-    for k in range(num_digits - 1, -1, -1):
-        digits[k] = x % base
-        x //= base
-    return digits
+from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
 def form_bck_brackets(
@@ -84,7 +72,7 @@ def form_bck_brackets(
                 return h
 
             for colour_index in range(num_colours):
-                colours = _unrank_base_d(colour_index, n_nodes, d)
+                colours = unrank_base_d(colour_index, n_nodes, d)
                 F_root_fn = build_node_function(0, colours)
                 J = jax.jacrev(F_root_fn)(x)
                 level_mats.append(J)

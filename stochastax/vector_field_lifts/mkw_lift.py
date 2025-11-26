@@ -5,19 +5,7 @@ from typing import Callable
 from stochastax.hopf_algebras.hopf_algebra_types import MKWForest
 from stochastax.vector_field_lifts.butcher import _build_children_from_parent
 from stochastax.vector_field_lifts.vector_field_lift_types import MKWBrackets
-
-
-def _unrank_base_d(index: int, num_digits: int, base: int) -> list[int]:
-    """
-    Convert a nonnegative integer to base-`base` digits of length `num_digits`
-    with most-significant digit first.
-    """
-    digits: list[int] = [0] * num_digits
-    x = int(index)
-    for k in range(num_digits - 1, -1, -1):
-        digits[k] = x % base
-        x //= base
-    return digits
+from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
 def form_mkw_brackets(
@@ -69,11 +57,17 @@ def form_mkw_brackets(
                 child_indices = children[node_index]
                 colour = colours[node_index]
                 if len(child_indices) == 0:
-                    return lambda y: project_to_tangent(y, V[colour](y))
+
+                    def leaf_field(y: jax.Array) -> jax.Array:
+                        return project_to_tangent(y, V[colour](y))
+
+                    return leaf_field
                 child_funcs = [build_node_function(ci, colours) for ci in child_indices]
 
                 def h(y: jax.Array) -> jax.Array:
-                    g = lambda z: project_to_tangent(z, V[colour](z))
+                    def g(z: jax.Array) -> jax.Array:
+                        return project_to_tangent(z, V[colour](z))
+
                     for cf in child_funcs:
 
                         def g_next(z: jax.Array, g=g, cf=cf) -> jax.Array:
@@ -86,7 +80,7 @@ def form_mkw_brackets(
                 return h
 
             for colour_index in range(num_colours):
-                colours = _unrank_base_d(colour_index, n_nodes, d)
+                colours = unrank_base_d(colour_index, n_nodes, d)
                 F_root_fn = build_node_function(0, colours)
                 J = jax.jacrev(F_root_fn)(x)
                 level_mats.append(J)
