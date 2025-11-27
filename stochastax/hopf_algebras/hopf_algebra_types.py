@@ -168,6 +168,22 @@ class Forest(NamedTuple):
 
     parent: jnp.ndarray
 
+    @property
+    def order(self) -> int:
+        """Order of the forest.
+
+        The order of a forest is the number of nodes in each tree of the forest.
+        """
+        return len(self.parent[0])
+
+    @property
+    def size(self) -> int:
+        """Size of the forest.
+
+        The size of a forest is the number of trees in the forest.
+        """
+        return self.parent.shape[0]
+
 
 MKWForest = NewType("MKWForest", Forest)
 BCKForest = NewType("BCKForest", Forest)
