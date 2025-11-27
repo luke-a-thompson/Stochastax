@@ -15,12 +15,7 @@ from stochastax.vector_field_lifts.lie_lift import (
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 import jax.random as jrandom
 
-
-def _so3_generators() -> jax.Array:
-    A1 = jnp.array([[0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]])
-    A2 = jnp.array([[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]])
-    A3 = jnp.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]])
-    return jnp.stack([A1, A2, A3], axis=0)  # [3, 3, 3]
+from tests.conftest import _so3_generators
 
 
 def test_lyndon_log_ode_manifold_zero_control_identity() -> None:

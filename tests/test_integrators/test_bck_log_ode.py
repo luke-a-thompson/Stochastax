@@ -5,7 +5,6 @@ from jax.scipy.linalg import expm as jexpm
 
 from stochastax.controls.drivers import bm_driver
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
-from stochastax.control_lifts.signature_types import BCKSignature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
 from stochastax.hopf_algebras import enumerate_bck_trees
@@ -30,7 +29,7 @@ def test_bck_log_ode_euclidean() -> None:
 
     path = jnp.array([[0.0], [delta]], dtype=jnp.float32)
     cov = jnp.zeros((1, 1, 1), dtype=jnp.float32)
-    sig: BCKSignature = compute_nonplanar_branched_signature(
+    sig = compute_nonplanar_branched_signature(
         path=path,
         order_m=depth,
         hopf=hopf,
@@ -64,14 +63,14 @@ def test_bck_signature_quadratic_variation(depth: int, dim: int) -> None:
     steps = W.num_timesteps - 1
     cov_zero = jnp.zeros((steps, dim, dim), dtype=W.path.dtype)
     cov_dtI = jnp.tile((dt * identity)[None, :, :], reps=(steps, 1, 1))
-    sig_zero: BCKSignature = compute_nonplanar_branched_signature(
+    sig_zero = compute_nonplanar_branched_signature(
         path=W.path,
         order_m=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov_zero,
     )
-    sig_dtI: BCKSignature = compute_nonplanar_branched_signature(
+    sig_dtI = compute_nonplanar_branched_signature(
         path=W.path,
         order_m=depth,
         hopf=hopf,

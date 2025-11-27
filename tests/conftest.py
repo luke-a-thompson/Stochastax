@@ -179,3 +179,11 @@ def identity_projection(y: jax.Array, v: jax.Array) -> jax.Array:
 def sphere_tangent_projection(y: jax.Array, v: jax.Array) -> jax.Array:
     """Project v onto the tangent space at y on the unit sphere: v - (v·y) y."""
     return v - jnp.dot(v, y) * y
+
+
+def _so3_generators() -> jax.Array:
+    """Return the three generators of so(3) Lie algebra as a [3, 3, 3] array."""
+    A1 = jnp.array([[0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]], dtype=jnp.float32)
+    A2 = jnp.array([[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]], dtype=jnp.float32)
+    A3 = jnp.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=jnp.float32)
+    return jnp.stack([A1, A2, A3], axis=0)  # [3, 3, 3]

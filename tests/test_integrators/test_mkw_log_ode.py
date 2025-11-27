@@ -6,18 +6,12 @@ from jax.scipy.linalg import expm as jexpm
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
-from stochastax.control_lifts.signature_types import MKWSignature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
 from stochastax.hopf_algebras import enumerate_mkw_trees
 from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
 
-
-def _so3_generators() -> jax.Array:
-    A1 = jnp.array([[0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]], dtype=jnp.float32)
-    A2 = jnp.array([[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]], dtype=jnp.float32)
-    A3 = jnp.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], dtype=jnp.float32)
-    return jnp.stack([A1, A2, A3], axis=0)
+from tests.conftest import _so3_generators
 
 
 def _linear_vector_fields(A: jax.Array) -> list:
@@ -48,7 +42,7 @@ def test_mkw_log_ode_euclidean() -> None:
 
     path = jnp.array([[0.0], [delta]], dtype=jnp.float32)
     cov = jnp.zeros((1, 1, 1), dtype=jnp.float32)
-    sig: MKWSignature = compute_planar_branched_signature(
+    sig = compute_planar_branched_signature(
         path=path,
         order_m=depth,
         hopf=hopf,
@@ -82,14 +76,14 @@ def test_mkw_signature_quadratic_variation(depth: int, dim: int) -> None:
     steps = W.num_timesteps - 1
     cov_zero = jnp.zeros((steps, dim, dim), dtype=W.path.dtype)
     cov_dtI = jnp.tile((dt * identity)[None, :, :], reps=(steps, 1, 1))
-    sig_zero: MKWSignature = compute_planar_branched_signature(
+    sig_zero = compute_planar_branched_signature(
         path=W.path,
         order_m=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov_zero,
     )
-    sig_dtI: MKWSignature = compute_planar_branched_signature(
+    sig_dtI = compute_planar_branched_signature(
         path=W.path,
         order_m=depth,
         hopf=hopf,
