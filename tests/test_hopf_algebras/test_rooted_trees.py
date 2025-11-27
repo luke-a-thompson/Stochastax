@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 
-from stochastax.hopf_algebras.rooted_trees import Forest, print_forest
+from stochastax.hopf_algebras.print_rooted_trees import print_forest
+from stochastax.hopf_algebras.hopf_algebra_types import Forest
 
 
 def test_render_forest_markdown_minimal_centered() -> None:
