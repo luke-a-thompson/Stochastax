@@ -220,7 +220,7 @@ class GLHopfAlgebra(HopfAlgebra):
         cls,
         d: int,
         forests: list[BCKForest],
-    ) -> "GLHopfAlgebra":
+    ) -> GLHopfAlgebra:
         # Build degree-2 map if applicable (no dependency on TreeIndex to avoid cycles)
         deg2_map: Optional[jax.Array] = None
         if len(forests) >= 2:
@@ -340,7 +340,7 @@ class MKWHopfAlgebra(HopfAlgebra):
         cls,
         d: int,
         forests: list[MKWForest],
-    ) -> "MKWHopfAlgebra":
+    ) -> MKWHopfAlgebra:
         deg2_map: Optional[jax.Array] = None
         if len(forests) >= 2:
             parents = forests[1].parent  # degree 2 is index 1

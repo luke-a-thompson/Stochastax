@@ -2,7 +2,6 @@ from typing import Callable
 
 import jax
 import jax.numpy as jnp
-from stochastax.control_lifts.log_signature import duval_generator
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 from stochastax.hopf_algebras.free_lie import (
     find_split_points_vectorized,

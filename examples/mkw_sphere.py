@@ -101,9 +101,9 @@ def main() -> None:
         sig_levels = compute_planar_branched_signature(
             path=w.path,
             order_m=depth,
-            forests=forests,
+            hopf=hopf,
+            mode="full",
             cov_increments=cov_increments,
-            return_trajectory=False,
         )
         # Convert to MKW log-signature
         from typing import cast

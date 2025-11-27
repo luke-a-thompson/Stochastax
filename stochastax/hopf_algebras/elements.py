@@ -155,6 +155,16 @@ class LieElement:
     def ambient_dimension(self) -> int:
         return int(self.hopf.ambient_dimension)
 
+    @override
+    def __str__(self) -> str:
+        information = f"""
+        An element of the {self.hopf} Lie algebra.
+        Depth: {self.depth}
+        Ambient dimension: {self.ambient_dimension}
+        Interval: {self.interval}
+        """
+        return information
+
 
 _ = jax.tree_util.register_pytree_node_class(GroupElement)
 _ = jax.tree_util.register_pytree_node_class(LieElement)
