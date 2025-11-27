@@ -9,21 +9,33 @@ from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
 def form_mkw_brackets(
-    V: list[Callable[[jax.Array], jax.Array]],
-    x: jax.Array,
+    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    base_point: jax.Array,
     forests_by_degree: list[MKWForest],
     project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array],
 ) -> MKWBrackets:
     """
-    Compute bracket matrices (Jacobian of MKW elementary differentials) per degree,
-    using a connection induced by projection to the tangent bundle.
+    Build nonlinear MKW brackets (planar rooted forests) evaluated at a base point.
 
-    Returns a list per degree k (degree = k+1) with shape [num_shapes_k * d^(k+1), n, n].
+    Args:
+        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
+            vector field per driver dimension.
+        base_point: base point where the MKW elementary differentials' Jacobians are
+            evaluated.
+        forests_by_degree: list where entry k encodes all MKW (planar) rooted forests
+            of degree k+1, as MKWForest objects.
+        project_to_tangent: projection map enforcing tangent dynamics on a manifold;
+            typically identity in the Euclidean case.
+
+    Returns:
+        List storing [num_shapes_k * d^(k+1), n, n] Jacobians per forest degree
+        (degree k+1), where num_shapes_k is the number of distinct planar forest
+        shapes with k+1 nodes and d is the number of driver vector fields.
     """
-    if x.ndim != 1:
-        raise ValueError(f"x must be a 1D array [n], got shape {x.shape}")
-    d = len(V)
-    n_state = int(x.shape[0])
+    if base_point.ndim != 1:
+        raise ValueError(f"base_point must be a 1D array [n], got shape {base_point.shape}")
+    d = len(vector_fields)
+    n_state = int(base_point.shape[0])
 
     results_by_degree: list[jax.Array] = []
 
@@ -39,7 +51,7 @@ def form_mkw_brackets(
             )
 
         if num_shapes == 0:
-            results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=x.dtype))
+            results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
             continue
 
         num_colours = d**n_nodes
@@ -59,14 +71,14 @@ def form_mkw_brackets(
                 if len(child_indices) == 0:
 
                     def leaf_field(y: jax.Array) -> jax.Array:
-                        return project_to_tangent(y, V[colour](y))
+                        return project_to_tangent(y, vector_fields[colour](y))
 
                     return leaf_field
                 child_funcs = [build_node_function(ci, colours) for ci in child_indices]
 
                 def h(y: jax.Array) -> jax.Array:
                     def g(z: jax.Array) -> jax.Array:
-                        return project_to_tangent(z, V[colour](z))
+                        return project_to_tangent(z, vector_fields[colour](z))
 
                     for cf in child_funcs:
 
@@ -82,11 +94,11 @@ def form_mkw_brackets(
             for colour_index in range(num_colours):
                 colours = unrank_base_d(colour_index, n_nodes, d)
                 F_root_fn = build_node_function(0, colours)
-                J = jax.jacrev(F_root_fn)(x)
+                J = jax.jacrev(F_root_fn)(base_point)
                 level_mats.append(J)
 
         if len(level_mats) == 0:
-            out = jnp.zeros((0, n_state, n_state), dtype=x.dtype)
+            out = jnp.zeros((0, n_state, n_state), dtype=base_point.dtype)
         else:
             out = jnp.stack(level_mats, axis=0)
         results_by_degree.append(out)

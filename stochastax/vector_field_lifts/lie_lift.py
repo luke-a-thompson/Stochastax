@@ -61,8 +61,8 @@ def form_lyndon_brackets_from_words(
 
 
 def form_lyndon_lift(
-    V: list[Callable[[jax.Array], jax.Array]],
-    x: jax.Array,
+    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    base_point: jax.Array,
     words_by_len: list[jax.Array],
     project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
 ) -> LyndonBrackets:
@@ -70,18 +70,22 @@ def form_lyndon_lift(
     Build nonlinear (pre-Lie) Lyndon brackets evaluated at a base point.
 
     Args:
-        V: list of vector fields V[i]: R^n -> R^n (or manifold charts).
-        x: base point where the brackets' Jacobians are evaluated.
-        words_by_len: list produced by duval_generator capturing Lyndon words.
-        project_to_tangent: optional projection enforcing tangent dynamics.
+        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
+            vector field per driver dimension.
+        base_point: base point where the brackets' Jacobians are evaluated.
+        words_by_len: list produced by duval_generator(depth, dim) capturing Lyndon
+            words grouped by length.
+        project_to_tangent: optional projection map enforcing tangent dynamics on a
+            manifold (identity in the Euclidean case).
 
     Returns:
-        List storing [N_k, n, n] Jacobians per Lyndon level (degree k+1).
+        List storing [N_k, n, n] Jacobians per Lyndon level (degree k+1), where N_k is
+        the number of Lyndon words of length k+1.
     """
-    if x.ndim != 1:
-        raise ValueError(f"x must be 1D, got shape {x.shape}.")
+    if base_point.ndim != 1:
+        raise ValueError(f"base_point must be 1D, got shape {base_point.shape}.")
     projector = project_to_tangent or (lambda _y, v: v)
-    n_state = int(x.shape[0])
+    n_state = int(base_point.shape[0])
 
     words_tuples: list[list[tuple[int, ...]]] = []
     word_maps: list[dict[tuple[int, ...], int]] = []
@@ -141,7 +145,7 @@ def form_lyndon_lift(
 
                 def make_leaf(index: int) -> Callable[[jax.Array], jax.Array]:
                     def leaf(y: jax.Array) -> jax.Array:
-                        return projector(y, V[index](y))
+                        return projector(y, vector_fields[index](y))
 
                     return leaf
 
@@ -182,9 +186,9 @@ def form_lyndon_lift(
     brackets_by_len: list[jax.Array] = []
     for funcs_level in vector_field_funcs:
         if not funcs_level:
-            brackets_by_len.append(jnp.zeros((0, n_state, n_state), dtype=x.dtype))
+            brackets_by_len.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
             continue
-        mats = [jax.jacrev(fn)(x) for fn in funcs_level]
+        mats = [jax.jacrev(fn)(base_point) for fn in funcs_level]
         brackets_by_len.append(jnp.stack(mats, axis=0))
 
     return LyndonBrackets(brackets_by_len)
