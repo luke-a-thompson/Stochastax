@@ -1,10 +1,36 @@
 import jax
 import jax.numpy as jnp
+from collections import defaultdict
 
 
 def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
     return a @ b - b @ a
 
+
+
+# @partial(jax.jit, static_argnames=["depth", "dim"])
+def enumerate_lyndon_basis(depth: int, dim: int) -> list[jax.Array]:
+    """Duval's generator. Generates lists of words (integer sequences) for each level up to a specified depth.
+    These words typically correspond to the Lyndon word basis.
+    Ref: https://www.lyndex.org/algo.php
+    """
+    if dim == 1:
+        first_level_word = [jnp.array([[0]], dtype=jnp.int32)]
+        higher_level_empty_words = [jnp.empty((0, i + 1), dtype=jnp.int32) for i in range(1, depth)]
+        return first_level_word + higher_level_empty_words
+
+    list_of_words = defaultdict(list)
+    word = [-1]
+    while word:
+        word[-1] += 1
+        m = len(word)
+        list_of_words[m - 1].append(jnp.array(word))
+        while len(word) < depth:
+            word.append(word[-m])
+        while word and word[-1] == dim - 1:
+            word.pop()
+
+    return [jnp.stack(list_of_words[i]) for i in range(depth)]
 
 def find_split_points_vectorized(
     words: jax.Array,

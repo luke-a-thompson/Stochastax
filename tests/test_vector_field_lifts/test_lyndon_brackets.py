@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from stochastax.control_lifts.log_signature import duval_generator
+from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.free_lie import commutator
 from stochastax.vector_field_lifts import form_lyndon_brackets_from_words
 
@@ -12,7 +12,7 @@ def test_form_lyndon_brackets_single_letter() -> None:
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(20), (dim, n, n))
 
-    words = duval_generator(depth=1, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=1, dim=A.shape[0])
     result = form_lyndon_brackets_from_words(A, words)
 
     # For depth=1, dim=2, we get words [0] and [1]
@@ -28,7 +28,7 @@ def test_form_lyndon_brackets_two_letters() -> None:
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(21), (dim, n, n))
 
-    words = duval_generator(depth=2, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=2, dim=A.shape[0])
     result = form_lyndon_brackets_from_words(A, words)
 
     # For depth=2, dim=2: words are [0], [1] at level 1, [0,1] at level 2
@@ -57,7 +57,7 @@ def test_form_lyndon_brackets_standard_factorization() -> None:
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(22), (dim, n, n))
 
-    words = duval_generator(depth=3, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=3, dim=A.shape[0])
     result = form_lyndon_brackets_from_words(A, words)
 
     # For depth=3, dim=2:
@@ -111,7 +111,7 @@ def test_form_lyndon_brackets_three_dimensions() -> None:
     dim, n = 3, 2
     A = jax.random.normal(jax.random.PRNGKey(24), (dim, n, n))
 
-    words = duval_generator(depth=3, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=3, dim=A.shape[0])
     result = form_lyndon_brackets_from_words(A, words)
 
     # For dim=3, depth=3, we should have:
@@ -138,13 +138,13 @@ def test_form_lyndon_brackets_empty() -> None:
     A = jax.random.normal(jax.random.PRNGKey(25), (dim, n, n))
 
     # Depth 0 should return empty list
-    words = duval_generator(depth=0, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=0, dim=A.shape[0])
     result = form_lyndon_brackets_from_words(A, words)
     assert len(result) == 0
 
     # Depth 1 with dim=1 should work
     A_single = jax.random.normal(jax.random.PRNGKey(26), (1, n, n))
-    words = duval_generator(depth=2, dim=A_single.shape[0])
+    words = enumerate_lyndon_basis(depth=2, dim=A_single.shape[0])
     result = form_lyndon_brackets_from_words(A_single, words)
     # For dim=1, we only get [0] at level 1, nothing at level 2+
     assert len(result) == 2
@@ -159,9 +159,9 @@ def test_form_lyndon_brackets_reproducibility() -> None:
     A = jax.random.normal(jax.random.PRNGKey(27), (dim, n, n))
 
     # Run twice with same input
-    words = duval_generator(depth=2, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=2, dim=A.shape[0])
     result1 = form_lyndon_brackets_from_words(A, words)
-    words = duval_generator(depth=2, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=2, dim=A.shape[0])
     result2 = form_lyndon_brackets_from_words(A, words)
 
     # Results should match exactly level-by-level
@@ -176,7 +176,7 @@ def test_form_lyndon_brackets_gradients() -> None:
     key = jax.random.PRNGKey(28)
 
     def loss_fn(A: jax.Array) -> jax.Array:
-        words = duval_generator(depth=2, dim=A.shape[0])
+        words = enumerate_lyndon_basis(depth=2, dim=A.shape[0])
         brackets = form_lyndon_brackets_from_words(A, words)
         # Sum of squares as a simple loss - concatenate all levels first
         brackets_flat = (
@@ -200,16 +200,16 @@ def test_form_lyndon_brackets_gradients() -> None:
 
 def test_form_lyndon_brackets_consistency_with_duval() -> None:
     """Test that Lyndon brackets are consistent with duval_generator output."""
-    from stochastax.control_lifts.log_signature import duval_generator
+    from stochastax.control_lifts.log_signature import enumerate_lyndon_basis
 
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(29), (dim, n, n))
 
     # Generate Lyndon words using duval_generator
-    words_by_len = duval_generator(depth=2, dim=dim)
+    words_by_len = enumerate_lyndon_basis(depth=2, dim=dim)
 
     # Compute brackets using our function
-    words = duval_generator(depth=2, dim=A.shape[0])
+    words = enumerate_lyndon_basis(depth=2, dim=A.shape[0])
     result = form_lyndon_brackets_from_words(A, words)
 
     # Verify we have the right number of brackets per level

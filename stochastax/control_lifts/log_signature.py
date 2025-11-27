@@ -2,8 +2,8 @@ from functools import partial
 import jax
 from stochastax.control_lifts.path_signature import compute_path_signature
 from typing import Literal, overload
-from collections import defaultdict
 import jax.numpy as jnp
+from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.elements import LieElement
 from stochastax.control_lifts.signature_types import Signature, LogSignature
 
@@ -41,12 +41,12 @@ def compute_log_signature(
         if log_signature_type == "Tensor words":
             return lie_el
         elif log_signature_type == "Lyndon words":
-            indices = duval_generator(depth, n_features)
+            basis = enumerate_lyndon_basis(depth, n_features)
             # reshape each level to expanded tensor shape, then compress
             expanded = [
                 coeff.reshape((n_features,) * (i + 1)) for i, coeff in enumerate(lie_el.coeffs)
             ]
-            compressed = compress(expanded, indices)
+            compressed = compress(expanded, basis)
             return LogSignature(
                 LieElement(hopf=lie_el.hopf, coeffs=compressed, interval=lie_el.interval)
             )
@@ -57,31 +57,6 @@ def compute_log_signature(
         return [LogSignature(_group_to_lie(sig)) for sig in signature_result]
     else:
         return LogSignature(_group_to_lie(signature_result))
-
-
-# @partial(jax.jit, static_argnames=["depth", "dim"])
-def duval_generator(depth: int, dim: int) -> list[jax.Array]:
-    """Generates lists of words (integer sequences) for each level up to a specified depth.
-    These words typically correspond to the Lyndon word basis.
-    Ref: https://www.lyndex.org/algo.php
-    """
-    if dim == 1:
-        first_level_word = [jnp.array([[0]], dtype=jnp.int32)]
-        higher_level_empty_words = [jnp.empty((0, i + 1), dtype=jnp.int32) for i in range(1, depth)]
-        return first_level_word + higher_level_empty_words
-
-    list_of_words = defaultdict(list)
-    word = [-1]
-    while word:
-        word[-1] += 1
-        m = len(word)
-        list_of_words[m - 1].append(jnp.array(word))
-        while len(word) < depth:
-            word.append(word[-m])
-        while word and word[-1] == dim - 1:
-            word.pop()
-
-    return [jnp.stack(list_of_words[i]) for i in range(depth)]
 
 
 def index_select(input: jax.Array, indices: jax.Array) -> jax.Array:
@@ -115,9 +90,9 @@ def index_select(input: jax.Array, indices: jax.Array) -> jax.Array:
     return jax.vmap(_select)(indices)
 
 
-def compress(expanded_terms: list[jax.Array], lyndon_indices: list[jax.Array]) -> list[jax.Array]:
+def compress(expanded_terms: list[jax.Array], lyndon_basis: list[jax.Array]) -> list[jax.Array]:
     result_compressed = []
-    for term, term_lyndon_indices in zip(expanded_terms, lyndon_indices):
-        compressed_term = index_select(term, term_lyndon_indices)
+    for term, term_lyndon_basis in zip(expanded_terms, lyndon_basis):
+        compressed_term = index_select(term, term_lyndon_basis)
         result_compressed.append(compressed_term)
     return result_compressed

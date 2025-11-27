@@ -6,7 +6,7 @@ import pytest
 from jax.scipy.linalg import expm as jexpm
 
 from stochastax.integrators.log_ode import log_ode
-from stochastax.control_lifts.log_signature import duval_generator
+from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.vector_field_lifts.lie_lift import (
     form_lyndon_brackets_from_words,
@@ -23,7 +23,7 @@ def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
     A: jax.Array = _so3_generators()
     depth: int = 2
     dim: int = A.shape[0]
-    words = duval_generator(depth, dim)
+    words = enumerate_lyndon_basis(depth, dim)
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
 
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
@@ -42,7 +42,7 @@ def test_lyndon_log_ode_euclidean_linear_matches_matrix_exponential() -> None:
     A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
     A: jax.Array = A0[jnp.newaxis, ...]  # [1, 2, 2]
     depth: int = 1
-    words = duval_generator(depth, 1)
+    words = enumerate_lyndon_basis(depth, 1)
     bracket_basis = form_lyndon_brackets_from_words(A, words)  # [1, 2, 2] == A0
 
     delta: float = 0.3
@@ -64,7 +64,7 @@ def test_log_ode_works_with_precomputed_words() -> None:
     A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
     A = A0[jnp.newaxis, ...]
     depth = 1
-    words = duval_generator(depth, 1)
+    words = enumerate_lyndon_basis(depth, 1)
     brackets = form_lyndon_brackets_from_words(A, words)
 
     delta = 0.2
@@ -91,7 +91,7 @@ def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
     A: jax.Array = jnp.stack([A1, A2], axis=0)  # [2, 3, 3]
     depth: int = 1
     dim: int = A.shape[0]
-    words = duval_generator(depth, dim)
+    words = enumerate_lyndon_basis(depth, dim)
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
@@ -188,9 +188,9 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
 
     V = [_linear_field(A[i]) for i in range(dim)]
     x0 = jnp.array([0.1, -0.2, 0.3], dtype=jnp.float32)
-    words = duval_generator(depth, dim)
+    words = enumerate_lyndon_basis(depth, dim)
     nonlinear = form_lyndon_lift(V, x0, words)
-    words_direct = duval_generator(depth, dim)
+    words_direct = enumerate_lyndon_basis(depth, dim)
     linear = form_lyndon_brackets_from_words(A, words_direct)
 
     for non_level, lin_level in zip(nonlinear, linear):
@@ -208,7 +208,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance(
     # Single 2x2 skew-symmetric generator
     A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
     A: jax.Array = A0[jnp.newaxis, ...]  # [1, 2, 2]
-    words = duval_generator(depth, A.shape[0])
+    words = enumerate_lyndon_basis(depth, A.shape[0])
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
 
     y0: jax.Array = jnp.array([1.0, 0.0], dtype=jnp.float32)
@@ -252,7 +252,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     A3 = jnp.block([[zeros2, zeros2, zeros2], [zeros2, zeros2, zeros2], [zeros2, zeros2, R2]])
     A: jax.Array = jnp.stack([A1, A2, A3], axis=0)  # [3, 6, 6]
 
-    words = duval_generator(depth, A.shape[0])
+    words = enumerate_lyndon_basis(depth, A.shape[0])
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
 
     y0: jax.Array = jnp.array([1.0, 0.0, 1.0, 0.0, 1.0, 0.0], dtype=jnp.float32)
