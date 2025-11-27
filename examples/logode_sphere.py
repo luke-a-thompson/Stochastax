@@ -8,7 +8,7 @@ from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.controls.paths_types import Path
 from stochastax.control_lifts.log_signature import compute_log_signature, duval_generator
-from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
 from stochastax.integrators.log_ode import log_ode
 
 
@@ -69,8 +69,8 @@ def main() -> None:
 
     # Lie brackets (Lyndon basis) for so(3) action on S^2 ⊂ R^3
     A = _so3_generators()  # [3,3,3]
-    lyndon_brackets = form_lyndon_brackets(A, depth=depth)  # LyndonBrackets
-    _ = duval_generator(depth, dim)  # generated indices unused after API change
+    words = duval_generator(depth, dim)
+    lyndon_brackets = form_lyndon_brackets_from_words(A, words)
 
     # Integrate the Log-ODE window-by-window on the sphere
     state = jnp.array([0.0, 0.0, 1.0])
