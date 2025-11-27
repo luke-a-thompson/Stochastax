@@ -1,6 +1,6 @@
 # Stochastax
 
-An extremely fast signature computation library built with JAX for efficient path signature and log signature computations.
+A Jax library for advanced stochastic analysis.
 
 [![PyPI version](https://badge.fury.io/py/stochastax.svg)](https://badge.fury.io/py/quicksig)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
