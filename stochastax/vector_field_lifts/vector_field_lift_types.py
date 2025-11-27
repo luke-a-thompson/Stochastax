@@ -1,3 +1,17 @@
+"""Types for vector field lifts.
+
+## Public API
+
+### For use in log-ODE:
+- LyndonBrackets: The Lyndon brackets (commutators) of vector fields.
+- BCKBrackets: The BCK brackets of vector fields.
+- MKWBrackets: The MKW brackets of vector fields. Suitable for manifolds.
+
+### For use in Butcher/Lie-Butcher series:
+- ButcherDifferentials: The elementary differentials of a vector field evaluated as a BCK forest.
+- LieButcherDifferentials: The elementary differentials of a vector field evaluated as a MKW forest. Suitable for manifolds.
+"""
+
 from typing import NewType
 import jax
 

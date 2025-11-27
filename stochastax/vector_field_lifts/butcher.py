@@ -1,3 +1,12 @@
+"""Form Butcher/Lie-Butcher differentials for BCK and MKW forests.
+
+## Public API
+
+### Butcher Series:
+- form_butcher_differentials: Form Butcher differentials for a BCK forest.
+- form_lie_butcher_differentials: Form Lie-Butcher differentials for a MKW forest. Suitable for manifolds.
+"""
+
 import jax
 import jax.numpy as jnp
 from typing import Callable, Optional
