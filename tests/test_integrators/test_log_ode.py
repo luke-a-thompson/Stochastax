@@ -1,13 +1,13 @@
-from typing import Callable
-
 import jax
 import jax.numpy as jnp
 import pytest
 from jax.scipy.linalg import expm as jexpm
+from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.integrators.log_ode import log_ode
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.control_lifts.log_signature import compute_log_signature
+from stochastax.control_lifts.signature_types import LogSignature
 from stochastax.vector_field_lifts.lie_lift import (
     form_lyndon_brackets_from_words,
     form_lyndon_lift,
@@ -16,6 +16,38 @@ from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 import jax.random as jrandom
 
 from tests.conftest import _so3_generators
+from tests.test_integrators.conftest import (
+    _linear_vector_fields,
+    benchmark_wrapper,
+)
+
+
+def _standard_log_ode_inputs(
+    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array, delta: float = 0.3
+) -> tuple[LyndonBrackets, LogSignature, jax.Array]:
+    """Build deterministic Euclidean inputs for the standard log-ODE."""
+    depth: int = 1
+    A: jax.Array = rotation_matrix_2d[jnp.newaxis, ...]
+    words = enumerate_lyndon_basis(depth, 1)
+    bracket_basis = form_lyndon_brackets_from_words(A, words)
+    seg_W: jax.Array = jnp.array([[0.0], [delta]], dtype=jnp.float32)
+    primitive: LogSignature = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+    return bracket_basis, primitive, euclidean_initial_state
+
+
+def _manifold_log_ode_inputs(
+    sphere_initial_state: jax.Array, num_steps: int = 32, dt: float = 0.01
+) -> tuple[LyndonBrackets, jax.Array, jax.Array]:
+    """Build deterministic increments for the manifold benchmark."""
+    A: jax.Array = _so3_generators()
+    depth: int = 1
+    dim: int = A.shape[0]
+    words = enumerate_lyndon_basis(depth, dim)
+    bracket_basis = form_lyndon_brackets_from_words(A, words)
+    key = jrandom.PRNGKey(123)
+    scale: jax.Array = jnp.sqrt(jnp.array(dt, dtype=jnp.float32))
+    increments: jax.Array = jrandom.normal(key, shape=(num_steps, dim), dtype=jnp.float32) * scale
+    return bracket_basis, increments, sphere_initial_state
 
 
 def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
@@ -36,44 +68,33 @@ def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
     assert jnp.allclose(y_next, y0, rtol=1e-7)
 
 
-def test_lyndon_log_ode_euclidean_linear_matches_matrix_exponential() -> None:
+def test_lyndon_log_ode_euclidean_linear_matches_matrix_exponential(
+    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array
+) -> None:
     """In 1D with depth=1, log-ODE equals exp(Δ A) @ y0."""
-    # Single generator in R^2: 90-degree rotation generator
-    A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
-    A: jax.Array = A0[jnp.newaxis, ...]  # [1, 2, 2]
-    depth: int = 1
-    words = enumerate_lyndon_basis(depth, 1)
-    bracket_basis = form_lyndon_brackets_from_words(A, words)  # [1, 2, 2] == A0
-
     delta: float = 0.3
-    # Build a 2-point path with increment delta
-    seg_W = jnp.array([[0.0], [delta]], dtype=jnp.float32)
-
-    y0: jax.Array = jnp.array([1.0, 0.0], dtype=jnp.float32)
-    primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+    bracket_basis, primitive, y0 = _standard_log_ode_inputs(
+        rotation_matrix_2d, euclidean_initial_state, delta
+    )
     y_logode: jax.Array = log_ode(bracket_basis, primitive, y0)
 
-    expected: jax.Array = jexpm(delta * A0) @ y0
+    expected: jax.Array = jexpm(delta * rotation_matrix_2d) @ y0
     expected = expected / jnp.linalg.norm(expected)
 
     assert jnp.allclose(y_logode, expected, rtol=1e-6)
 
 
-def test_log_ode_works_with_precomputed_words() -> None:
+def test_log_ode_works_with_precomputed_words(
+    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array
+) -> None:
     """log_ode with brackets built from precomputed Lyndon words reproduces linear result."""
-    A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
-    A = A0[jnp.newaxis, ...]
-    depth = 1
-    words = enumerate_lyndon_basis(depth, 1)
-    brackets = form_lyndon_brackets_from_words(A, words)
-
     delta = 0.2
-    seg_W = jnp.array([[0.0], [delta]], dtype=jnp.float32)
-    y0 = jnp.array([1.0, 0.0], dtype=jnp.float32)
-    primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+    brackets, primitive, y0 = _standard_log_ode_inputs(
+        rotation_matrix_2d, euclidean_initial_state, delta
+    )
     y_next = log_ode(brackets, primitive, y0)
 
-    expected = jexpm(delta * A0) @ y0
+    expected = jexpm(delta * rotation_matrix_2d) @ y0
     expected = expected / jnp.linalg.norm(expected)
     assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
 
@@ -180,13 +201,7 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
     depth = 2
     dim = A.shape[0]
 
-    def _linear_field(matrix: jax.Array) -> Callable[[jax.Array], jax.Array]:
-        def field(y: jax.Array) -> jax.Array:
-            return matrix @ y
-
-        return field
-
-    V = [_linear_field(A[i]) for i in range(dim)]
+    V = _linear_vector_fields(A)
     x0 = jnp.array([0.1, -0.2, 0.3], dtype=jnp.float32)
     words = enumerate_lyndon_basis(depth, dim)
     nonlinear = form_lyndon_lift(V, x0, words)
@@ -201,25 +216,24 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
 @pytest.mark.parametrize("brownian_path_fixture", [(1, 200)], indirect=True)
 def test_lyndon_log_ode_euclidean_segmentation_invariance(
     brownian_path_fixture: jax.Array,
+    rotation_matrix_2d: jax.Array,
+    euclidean_initial_state: jax.Array,
 ) -> None:
     """Sequential windowed application equals whole-interval application for commuting case (dim=1)."""
     W: jax.Array = brownian_path_fixture  # shape (N+1, 1)
     depth: int = 1  # depth=1 and dim=1 => commuting flows so product of exponentials equals single exponential
     # Single 2x2 skew-symmetric generator
-    A0 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)
-    A: jax.Array = A0[jnp.newaxis, ...]  # [1, 2, 2]
+    A: jax.Array = rotation_matrix_2d[jnp.newaxis, ...]  # [1, 2, 2]
     words = enumerate_lyndon_basis(depth, A.shape[0])
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
 
-    y0: jax.Array = jnp.array([1.0, 0.0], dtype=jnp.float32)
-
     # Whole interval
     log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full, y0)
+    y_full: jax.Array = log_ode(bracket_basis, log_sig_full, euclidean_initial_state)
 
     # Windowed
     window: int = 10
-    y_win: jax.Array = y0
+    y_win: jax.Array = euclidean_initial_state
     N: int = W.shape[0] - 1
     for s in range(0, N, window):
         e = min(s + window, N)
@@ -273,3 +287,39 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
         y_win = log_ode(bracket_basis, log_sig_seg, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
+
+
+@pytest.mark.benchmark(group="log_ode_standard")
+def test_log_ode_benchmark_standard(
+    benchmark: BenchmarkFixture,
+    rotation_matrix_2d: jax.Array,
+    euclidean_initial_state: jax.Array,
+) -> None:
+    """Benchmark the Euclidean log-ODE step."""
+    brackets, primitive, y0 = _standard_log_ode_inputs(rotation_matrix_2d, euclidean_initial_state)
+    result = benchmark_wrapper(benchmark, log_ode, brackets, primitive, y0)
+    assert result.shape == y0.shape
+
+
+@pytest.mark.benchmark(group="log_ode_manifold")
+def test_log_ode_benchmark_manifold(
+    benchmark: BenchmarkFixture, sphere_initial_state: jax.Array
+) -> None:
+    """Benchmark a short manifold trajectory by scanning deterministic increments."""
+    bracket_basis, increments, y0 = _manifold_log_ode_inputs(sphere_initial_state)
+    depth: int = 1
+    dim: int = increments.shape[1]
+
+    @jax.jit
+    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
+        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
+            seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
+            primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+            y_next = log_ode(bracket_basis, primitive, carry)
+            return y_next, None
+
+        y_final, _ = jax.lax.scan(step, y_init, path_increments)
+        return y_final
+
+    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
+    assert result.shape == y0.shape

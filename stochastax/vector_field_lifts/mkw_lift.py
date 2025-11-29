@@ -3,8 +3,8 @@ import jax.numpy as jnp
 from typing import Callable
 
 from stochastax.hopf_algebras.hopf_algebra_types import MKWForest
-from stochastax.vector_field_lifts.butcher import _build_children_from_parent
 from stochastax.vector_field_lifts.vector_field_lift_types import MKWBrackets
+from stochastax.vector_field_lifts.butcher import _build_children_from_parent
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 

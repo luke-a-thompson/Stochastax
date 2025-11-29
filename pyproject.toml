@@ -44,13 +44,14 @@ dependencies = ["jax>=0.7.0"]
 "Documentation" = "https://github.com/luke-a-thompson/QuickSig/blob/master/README.md"
 
 [project.optional-dependencies]
-cuda = ["jax[cuda12]>=0.6.0"]
+cuda = ["jax[cuda12]>=0.7.0"]
 dev = [
     "ruff>=0.14.3",
     "mypy",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
     "pytest-timeout>=2.3.1",
+    "pytest-benchmark>=5.2.3",
     "matplotlib>=3.10.1",
     "signax>=0.2.1",
     "diffrax>=0.7.0",
