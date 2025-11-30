@@ -1,8 +1,9 @@
 import jax
 import jax.numpy as jnp
 import pytest
-
+from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from tests.test_integrators.conftest import benchmark_wrapper
 
 # OEIS A000108: Catalan numbers; here mapping n -> Catalan(n-1)
 # https://oeis.org/A000108
@@ -61,3 +62,17 @@ def test_ordered_is_jittable(n: int) -> None:
     ordered_fn = jax.jit(enumerate_mkw_trees, static_argnums=0)
     ordered_batch = ordered_fn(n)[n - 1]
     _assert_parent_batch(ordered_batch.parent, n)
+
+
+@pytest.mark.benchmark(group="mkw_trees")
+def test_mkw_enumeration_benchmark(benchmark: BenchmarkFixture) -> None:
+    """Benchmark enumeration of MKW tree parents at n=8."""
+    n = 8
+
+    def _run_enumeration(size: int) -> jnp.ndarray:
+        return enumerate_mkw_trees(size)[size - 1].parent
+
+    parents = benchmark_wrapper(benchmark, _run_enumeration, n)
+    expected = A000108[n]
+    assert parents.shape == (expected, n)
+    _assert_parent_batch(parents, n)

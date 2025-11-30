@@ -1,9 +1,10 @@
 import jax
 import jax.numpy as jnp
 import pytest
-
+from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
 from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from tests.test_integrators.conftest import benchmark_wrapper
 
 
 # OEIS A000081: number of rooted unlabeled trees with n nodes
@@ -100,3 +101,17 @@ def test_unordered_is_jittable(n: int) -> None:
     unordered_fn = jax.jit(enumerate_bck_trees, static_argnums=0)
     unordered_batch = unordered_fn(n)[n - 1]
     _assert_parent_batch(unordered_batch.parent, n)
+
+
+@pytest.mark.benchmark(group="bck_trees")
+def test_bck_enumeration_benchmark(benchmark: BenchmarkFixture) -> None:
+    """Benchmark enumeration of BCK tree parents at n=8."""
+    n = 8
+
+    def _run_enumeration(size: int) -> jnp.ndarray:
+        return enumerate_bck_trees(size)[size - 1].parent
+
+    parents = benchmark_wrapper(benchmark, _run_enumeration, n)
+    expected = A000081[n]
+    assert parents.shape == (expected, n)
+    _assert_parent_batch(parents, n)
