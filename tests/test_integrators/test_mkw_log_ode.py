@@ -17,30 +17,28 @@ from tests.test_integrators.conftest import (
     _linear_vector_fields,
     _project_to_tangent,
     benchmark_wrapper,
+    build_mkw_log_ode_inputs,
+    build_block_rotation_generators,
+    build_block_initial_state,
+    build_two_point_path,
 )
 
 
-def _mkw_manifold_benchmark_inputs(
-    sphere_initial_state: jax.Array, depth: int = 1, steps: int = 12
-) -> tuple[list, object, jax.Array]:
-    """Produce deterministic manifold data for the MKW benchmark."""
-    A: jax.Array = _so3_generators()
-    dim: int = A.shape[0]
-    V = _linear_vector_fields(A)
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("dim", [1, 3])
+def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim: int) -> None:
+    """Planar branched log-ODE matches matrix exponential for linear Euclidean systems."""
+    delta = 0.25
     forests = enumerate_mkw_trees(depth)
     hopf = MKWHopfAlgebra.build(dim, forests)
-    mkw_brackets = form_mkw_brackets(V, sphere_initial_state, forests, _project_to_tangent)
-    axis: jax.Array = jnp.linspace(0.0, jnp.pi, steps, dtype=jnp.float32)
-    increments: jax.Array = jnp.stack(
-        [
-            0.02 * jnp.sin(axis),
-            0.02 * jnp.cos(axis),
-            0.015 * jnp.sin(2.0 * axis),
-        ],
-        axis=1,
-    )
-    origin = jnp.zeros((1, dim), dtype=jnp.float32)
-    path = jnp.concatenate([origin, origin + jnp.cumsum(increments, axis=0)], axis=0)
+
+    generators = build_block_rotation_generators(dim)
+    vector_fields = _linear_vector_fields(generators)
+    y0 = build_block_initial_state(dim)
+    mkw_brackets = form_mkw_brackets(vector_fields, y0, hopf, lambda _, v: v)
+
+    path = build_two_point_path(delta, dim)
+    steps = path.shape[0] - 1
     cov = jnp.zeros((steps, dim, dim), dtype=jnp.float32)
     sig = compute_planar_branched_signature(
         path=path,
@@ -50,7 +48,12 @@ def _mkw_manifold_benchmark_inputs(
         cov_increments=cov,
     )
     logsig = sig.log()
-    return mkw_brackets, logsig, sphere_initial_state
+
+    y_next = log_ode(mkw_brackets, logsig, y0)
+    combined_generator = jnp.sum(generators, axis=0)
+    expected = jexpm(delta * combined_generator) @ y0
+    expected = expected / jnp.linalg.norm(expected)
+    assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
 
 
 def test_mkw_log_ode_euclidean(
@@ -66,7 +69,7 @@ def test_mkw_log_ode_euclidean(
     mkw_brackets = form_mkw_brackets(
         _linear_vector_fields(A),
         euclidean_initial_state,
-        forests,
+        hopf,
         lambda _, v: v,
     )
 
@@ -143,7 +146,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
 
     forests = enumerate_mkw_trees(depth)
     hopf = MKWHopfAlgebra.build(dim, forests)
-    mkw_brackets = form_mkw_brackets(V, y0, forests, _project_to_tangent)
+    mkw_brackets = form_mkw_brackets(V, y0, hopf, _project_to_tangent)
 
     key = jax.random.PRNGKey(4)
     timesteps = 1000
@@ -218,11 +221,18 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     assert jnp.allclose(cov_xy, target_cov, rtol=0.2, atol=0.03)
 
 
+MKW_BENCH_CASES = [
+    pytest.param(1, 12, id="depth1"),
+    pytest.param(1, 24, id="depth1-longer-path"),
+]
+
+
 @pytest.mark.benchmark(group="log_ode_mkw")
+@pytest.mark.parametrize("depth,steps", MKW_BENCH_CASES)
 def test_mkw_log_ode_benchmark_manifold(
-    benchmark: BenchmarkFixture, sphere_initial_state: jax.Array
+    benchmark: BenchmarkFixture, depth: int, steps: int
 ) -> None:
     """Benchmark the MKW manifold integrator on deterministic data."""
-    mkw_brackets, logsig, y0 = _mkw_manifold_benchmark_inputs(sphere_initial_state)
+    mkw_brackets, logsig, y0 = build_mkw_log_ode_inputs(depth, steps)
     result = benchmark_wrapper(benchmark, log_ode, mkw_brackets, logsig, y0)
     assert result.shape == y0.shape

@@ -7,7 +7,6 @@ from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.integrators.log_ode import log_ode
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.control_lifts.log_signature import compute_log_signature
-from stochastax.control_lifts.signature_types import LogSignature
 from stochastax.vector_field_lifts.lie_lift import (
     form_lyndon_brackets_from_words,
     form_lyndon_lift,
@@ -19,35 +18,10 @@ from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
     benchmark_wrapper,
+    build_standard_log_ode_inputs,
+    build_standard_manifold_case,
+    build_block_rotation_generators,
 )
-
-
-def _standard_log_ode_inputs(
-    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array, delta: float = 0.3
-) -> tuple[LyndonBrackets, LogSignature, jax.Array]:
-    """Build deterministic Euclidean inputs for the standard log-ODE."""
-    depth: int = 1
-    A: jax.Array = rotation_matrix_2d[jnp.newaxis, ...]
-    words = enumerate_lyndon_basis(depth, 1)
-    bracket_basis = form_lyndon_brackets_from_words(A, words)
-    seg_W: jax.Array = jnp.array([[0.0], [delta]], dtype=jnp.float32)
-    primitive: LogSignature = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
-    return bracket_basis, primitive, euclidean_initial_state
-
-
-def _manifold_log_ode_inputs(
-    sphere_initial_state: jax.Array, num_steps: int = 32, dt: float = 0.01
-) -> tuple[LyndonBrackets, jax.Array, jax.Array]:
-    """Build deterministic increments for the manifold benchmark."""
-    A: jax.Array = _so3_generators()
-    depth: int = 1
-    dim: int = A.shape[0]
-    words = enumerate_lyndon_basis(depth, dim)
-    bracket_basis = form_lyndon_brackets_from_words(A, words)
-    key = jrandom.PRNGKey(123)
-    scale: jax.Array = jnp.sqrt(jnp.array(dt, dtype=jnp.float32))
-    increments: jax.Array = jrandom.normal(key, shape=(num_steps, dim), dtype=jnp.float32) * scale
-    return bracket_basis, increments, sphere_initial_state
 
 
 def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
@@ -68,35 +42,25 @@ def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
     assert jnp.allclose(y_next, y0, rtol=1e-7)
 
 
+@pytest.mark.parametrize("depth", [1, 2, 3])
+@pytest.mark.parametrize("dim", [1, 3, 5])
 def test_lyndon_log_ode_euclidean_linear_matches_matrix_exponential(
-    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array
+    rotation_matrix_2d: jax.Array,
+    euclidean_initial_state: jax.Array,
+    depth: int,
+    dim: int,
 ) -> None:
-    """In 1D with depth=1, log-ODE equals exp(Δ A) @ y0."""
+    """Linear Euclidean log-ODE equals exp(Δ * sum_i A_i) @ y0 across depth/dim combos."""
     delta: float = 0.3
-    bracket_basis, primitive, y0 = _standard_log_ode_inputs(
-        rotation_matrix_2d, euclidean_initial_state, delta
-    )
+    bracket_basis, primitive, y0 = build_standard_log_ode_inputs(depth=depth, dim=dim, delta=delta)
     y_logode: jax.Array = log_ode(bracket_basis, primitive, y0)
 
-    expected: jax.Array = jexpm(delta * rotation_matrix_2d) @ y0
+    generators = build_block_rotation_generators(dim)
+    combined_generator = jnp.sum(generators, axis=0)
+    expected = jexpm(delta * combined_generator) @ y0
     expected = expected / jnp.linalg.norm(expected)
 
     assert jnp.allclose(y_logode, expected, rtol=1e-6)
-
-
-def test_log_ode_works_with_precomputed_words(
-    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array
-) -> None:
-    """log_ode with brackets built from precomputed Lyndon words reproduces linear result."""
-    delta = 0.2
-    brackets, primitive, y0 = _standard_log_ode_inputs(
-        rotation_matrix_2d, euclidean_initial_state, delta
-    )
-    y_next = log_ode(brackets, primitive, y0)
-
-    expected = jexpm(delta * rotation_matrix_2d) @ y0
-    expected = expected / jnp.linalg.norm(expected)
-    assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
 
 
 def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
@@ -289,25 +253,38 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
 
+STANDARD_BENCH_CASES = [
+    pytest.param(1, 1, 0.3, id="depth1-dim1"),
+    pytest.param(2, 2, 0.2, id="depth2-dim2"),
+    pytest.param(3, 8, 0.2, id="depth3-dim8"),
+]
+
+
 @pytest.mark.benchmark(group="log_ode_standard")
+@pytest.mark.parametrize("depth,dim,delta", STANDARD_BENCH_CASES)
 def test_log_ode_benchmark_standard(
     benchmark: BenchmarkFixture,
-    rotation_matrix_2d: jax.Array,
-    euclidean_initial_state: jax.Array,
+    depth: int,
+    dim: int,
+    delta: float,
 ) -> None:
-    """Benchmark the Euclidean log-ODE step."""
-    brackets, primitive, y0 = _standard_log_ode_inputs(rotation_matrix_2d, euclidean_initial_state)
+    """Benchmark the Euclidean log-ODE step across depth/dim combos."""
+    brackets, primitive, y0 = build_standard_log_ode_inputs(depth, dim, delta)
     result = benchmark_wrapper(benchmark, log_ode, brackets, primitive, y0)
     assert result.shape == y0.shape
 
 
+MANIFOLD_BENCH_CASES = [
+    pytest.param(1, 32, id="depth1"),
+    pytest.param(2, 48, id="depth2"),
+]
+
+
 @pytest.mark.benchmark(group="log_ode_manifold")
-def test_log_ode_benchmark_manifold(
-    benchmark: BenchmarkFixture, sphere_initial_state: jax.Array
-) -> None:
+@pytest.mark.parametrize("depth,steps", MANIFOLD_BENCH_CASES)
+def test_log_ode_benchmark_manifold(benchmark: BenchmarkFixture, depth: int, steps: int) -> None:
     """Benchmark a short manifold trajectory by scanning deterministic increments."""
-    bracket_basis, increments, y0 = _manifold_log_ode_inputs(sphere_initial_state)
-    depth: int = 1
+    bracket_basis, increments, y0 = build_standard_manifold_case(depth, steps)
     dim: int = increments.shape[1]
 
     @jax.jit
