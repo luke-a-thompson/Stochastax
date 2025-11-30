@@ -189,7 +189,7 @@ MKWForest = NewType("MKWForest", Forest)
 BCKForest = NewType("BCKForest", Forest)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class GLHopfAlgebra(HopfAlgebra):
     """Grossman-Larson / Connes-Kreimer Hopf algebra on unordered rooted forests.
 
@@ -203,17 +203,23 @@ class GLHopfAlgebra(HopfAlgebra):
     # Degree/basis metadata
     max_degree: int = 0
     shape_count_by_degree: list[int] = field(default_factory=list)
+    forests_by_degree: tuple[BCKForest, ...] = field(default_factory=tuple)
 
     @override
     def basis_size(self, level: int) -> int:
-        # Per-level dimension: number of unordered rooted forests with n nodes times d^n,
-        # where n = level + 1 and #forests(n) = A000081(n+1).
+        if not self.shape_count_by_degree:
+            raise ValueError(
+                "GLHopfAlgebra must be constructed via GLHopfAlgebra.build to "
+                "populate per-degree shape counts."
+            )
+        if level < 0 or level >= len(self.shape_count_by_degree):
+            raise ValueError(
+                f"Requested level {level} outside available range "
+                f"[0, {len(self.shape_count_by_degree) - 1}]."
+            )
         n = level + 1
-        from stochastax.analytics.signature_sizes import _a000081_upto
-
-        counts = _a000081_upto(n + 1)  # counts[k] = A000081(k+1) for k=0..n
-        num_forests_n = counts[n]  # A000081(n+1)
-        return num_forests_n * (self.ambient_dimension**n)
+        num_shapes = self.shape_count_by_degree[level]
+        return num_shapes * (self.ambient_dimension**n)
 
     @classmethod
     def build(
@@ -243,6 +249,7 @@ class GLHopfAlgebra(HopfAlgebra):
             degree2_chain_indices=deg2_map,
             max_degree=len(forests),
             shape_count_by_degree=shape_counts,
+            forests_by_degree=tuple(forests),
         )
 
     @override
@@ -311,7 +318,7 @@ class GLHopfAlgebra(HopfAlgebra):
 
 
 @final
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class MKWHopfAlgebra(HopfAlgebra):
     """Munthe-Kaas-Wright Hopf algebra on ordered (planar) rooted forests.
 
@@ -324,16 +331,23 @@ class MKWHopfAlgebra(HopfAlgebra):
     # Degree/basis metadata
     max_degree: int = 0
     shape_count_by_degree: list[int] = field(default_factory=list)
+    forests_by_degree: tuple[MKWForest, ...] = field(default_factory=tuple)
 
     @override
     def basis_size(self, level: int) -> int:
-        # Per-level dimension: number of plane rooted forests with n nodes times d^n,
-        # where n = level + 1 and #plane_forests(n) = Catalan(n).
+        if not self.shape_count_by_degree:
+            raise ValueError(
+                "MKWHopfAlgebra must be constructed via MKWHopfAlgebra.build to "
+                "populate per-degree shape counts."
+            )
+        if level < 0 or level >= len(self.shape_count_by_degree):
+            raise ValueError(
+                f"Requested level {level} outside available range "
+                f"[0, {len(self.shape_count_by_degree) - 1}]."
+            )
         n = level + 1
-        from stochastax.analytics.signature_sizes import _catalan
-
-        # Number of plane rooted trees with n nodes is Catalan(n-1)
-        return _catalan(n - 1) * (self.ambient_dimension**n)
+        num_shapes = self.shape_count_by_degree[level]
+        return num_shapes * (self.ambient_dimension**n)
 
     @classmethod
     def build(
@@ -362,6 +376,7 @@ class MKWHopfAlgebra(HopfAlgebra):
             degree2_chain_indices=deg2_map,
             max_degree=len(forests),
             shape_count_by_degree=shape_counts,
+            forests_by_degree=tuple(forests),
         )
 
     @override
