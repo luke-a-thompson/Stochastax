@@ -64,13 +64,50 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     """Shuffle/Tensor Hopf algebra used for path signatures.
 
     The representation uses per-degree flattened tensors, omitting degree 0.
+    Instances built via ``build`` cache per-degree metadata so downstream
+    consumers can reuse the same combinatorics instead of recomputing them.
     """
 
     ambient_dimension: int
+    max_degree: int = 0
+    shape_count_by_degree: list[int] = field(default_factory=list)
+    lyndon_basis_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+
+    @classmethod
+    def build(
+        cls,
+        d: int,
+        max_degree: int,
+        cache_lyndon_basis: bool = False,
+    ) -> "ShuffleHopfAlgebra":
+        """Construct a shuffle Hopf algebra with cached per-degree metadata."""
+        if max_degree <= 0:
+            raise ValueError(f"max_degree must be >= 1, got {max_degree}.")
+        shape_counts = [int(d ** (level + 1)) for level in range(max_degree)]
+        if cache_lyndon_basis:
+            from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
+
+            lyndon_levels = enumerate_lyndon_basis(max_degree, d)
+            lyndon_tuple = tuple(lyndon_levels)
+        else:
+            lyndon_tuple: tuple[jax.Array, ...] = tuple()
+        return cls(
+            ambient_dimension=d,
+            max_degree=max_degree,
+            shape_count_by_degree=shape_counts,
+            lyndon_basis_by_degree=lyndon_tuple,
+        )
 
     @override
     def basis_size(self, level: int) -> int:
-        # Per-level (degree = level+1) tensor dimension is dim^(level+1)
+        if self.shape_count_by_degree:
+            if level < 0 or level >= len(self.shape_count_by_degree):
+                raise ValueError(
+                    f"Requested level {level} outside available range "
+                    f"[0, {len(self.shape_count_by_degree) - 1}]."
+                )
+            return self.shape_count_by_degree[level]
+        # Stateless fallback (legacy instances not created via build()).
         return int(self.ambient_dimension ** (level + 1))
 
     def _unflatten_levels(self, levels: list[jax.Array]) -> list[jax.Array]:
@@ -198,10 +235,9 @@ class GLHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
+    max_order: int = 0
     # Optional precomputed structures
     degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
-    # Degree/basis metadata
-    max_degree: int = 0
     shape_count_by_degree: list[int] = field(default_factory=list)
     forests_by_degree: tuple[BCKForest, ...] = field(default_factory=tuple)
 
@@ -247,7 +283,7 @@ class GLHopfAlgebra(HopfAlgebra):
         return cls(
             ambient_dimension=d,
             degree2_chain_indices=deg2_map,
-            max_degree=len(forests),
+            max_order=len(forests),
             shape_count_by_degree=shape_counts,
             forests_by_degree=tuple(forests),
         )
@@ -327,9 +363,9 @@ class MKWHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
+    max_order: int = 0
+    # Optional precomputed structures
     degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
-    # Degree/basis metadata
-    max_degree: int = 0
     shape_count_by_degree: list[int] = field(default_factory=list)
     forests_by_degree: tuple[MKWForest, ...] = field(default_factory=tuple)
 
@@ -352,7 +388,7 @@ class MKWHopfAlgebra(HopfAlgebra):
     @classmethod
     def build(
         cls,
-        d: int,
+        ambient_dim: int,
         forests: list[MKWForest],
     ) -> MKWHopfAlgebra:
         deg2_map: Optional[jax.Array] = None
@@ -364,17 +400,17 @@ class MKWHopfAlgebra(HopfAlgebra):
             shape_id = int(matches[0].item())
             if shape_id >= 0:
                 rows = []
-                for i in range(d):
+                for i in range(ambient_dim):
                     row = []
-                    for j in range(d):
-                        row.append(shape_id * (d**2) + i * d + j)
+                    for j in range(ambient_dim):
+                        row.append(shape_id * (ambient_dim**2) + i * ambient_dim + j)
                     rows.append(row)
                 deg2_map = jnp.asarray(rows, dtype=jnp.int32)
         shape_counts = [int(f.parent.shape[0]) for f in forests]
         return cls(
-            ambient_dimension=d,
+            ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
-            max_degree=len(forests),
+            max_order=len(forests),
             shape_count_by_degree=shape_counts,
             forests_by_degree=tuple(forests),
         )
@@ -382,24 +418,25 @@ class MKWHopfAlgebra(HopfAlgebra):
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
-            raise ValueError("Truncations must match for product.")
-        m = len(a_levels)
+            raise ValueError("Truncation orders must match for product.")
+        order = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
-        if m >= 2:
+        if order >= 2:
             if self.degree2_chain_indices is None:
                 raise ValueError("MKWHopfAlgebra not built with degree-2 tables.")
-            d = self.ambient_dimension
             a1 = a_levels[0].reshape(-1)
             b1 = b_levels[0].reshape(-1)
-            if a1.shape[0] != d or b1.shape[0] != d:
-                raise NotImplementedError("Degree-1 basis must be single-node with d colours.")
-            outer = jnp.outer(a1, b1)  # (d, d)
+            if a1.shape[0] != self.ambient_dimension or b1.shape[0] != self.ambient_dimension:
+                raise NotImplementedError(
+                    "Degree-1 basis must be single-node with ambient dimension colours."
+                )
+            outer = jnp.outer(a1, b1)  # (ambient_dimension, ambient_dimension)
             idx = self.degree2_chain_indices
             updates = jnp.zeros_like(out[1])
             updates = updates.at[idx].add(outer)
             out[1] = out[1] + updates
-        if m >= 3:
-            raise NotImplementedError("MKWHopfAlgebra product for degree>=3 not implemented yet.")
+        if order >= 3:
+            raise NotImplementedError("MKWHopfAlgebra product for order>=3 not implemented yet.")
         return out
 
     @override

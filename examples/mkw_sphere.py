@@ -7,10 +7,8 @@ from typing import Callable
 
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
-from stochastax.controls.paths_types import Path
 from stochastax.hopf_algebras import enumerate_mkw_trees
 from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
-from stochastax.hopf_algebras.elements import GroupElement
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
@@ -73,8 +71,8 @@ def main() -> None:
     window_size = 10
 
     # Drivers and windowing
-    bm_path: Path = bm_driver(key, timesteps=timesteps, dim=dim)
-    windows: list[Path] = non_overlapping_windower(bm_path, window_size=window_size)
+    bm_path = bm_driver(key, timesteps=timesteps, dim=dim)
+    windows = non_overlapping_windower(bm_path, window_size=window_size)
     dt = 1.0 / timesteps
 
     # MKW forests and Hopf algebra for branched signatures
@@ -86,9 +84,6 @@ def main() -> None:
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.0, 0.0, 1.0])
     mkw_brackets = form_mkw_brackets(V, x0, hopf, _project_to_tangent)
-
-    # words_by_len placeholder: use forests' parent arrays for filtering nonempty levels
-    _ = [f.parent for f in forests]  # unused after API change
 
     # Integrate Log-ODE window-by-window using branched Itô log signatures with known QV
     state = x0
@@ -105,12 +100,8 @@ def main() -> None:
             mode="full",
             cov_increments=cov_increments,
         )
-        # Convert to MKW log-signature
-        from typing import cast
 
-        sig_levels_list = cast(list[jax.Array], sig_levels)
-        group_el = GroupElement(hopf=hopf, coeffs=sig_levels_list, interval=w.interval)
-        logsig = group_el.log()  # MKWLogSignature
+        logsig = sig_levels.log()  # MKWLogSignature
         # One Log-ODE update on sphere (normalization keeps state on S^2)
         state = log_ode(mkw_brackets, logsig, state)
         traj.append(state)

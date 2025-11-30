@@ -36,6 +36,11 @@ pip install quicksig[all]
 uv sync --all-extras
 ```
 
+Run Benchmarks
+```bash
+uv run pytest --benchmark-only
+```
+
 ## Quick Start
 
 ```python

@@ -3,6 +3,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 from stochastax.hopf_algebras.free_lie import (
     find_split_points_vectorized,
     compute_lyndon_level_brackets,
@@ -63,7 +64,7 @@ def form_lyndon_brackets_from_words(
 def form_lyndon_lift(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
-    words_by_len: list[jax.Array],
+    hopf: ShuffleHopfAlgebra,
     project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
 ) -> LyndonBrackets:
     """
@@ -73,8 +74,8 @@ def form_lyndon_lift(
         vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
             vector field per driver dimension.
         base_point: base point where the brackets' Jacobians are evaluated.
-        words_by_len: list produced by duval_generator(depth, dim) capturing Lyndon
-            words grouped by length.
+        hopf: Shuffle (tensor) Hopf algebra built with ``cache_lyndon_basis=True`` so
+            Lyndon combinatorics can be reused by the lift.
         project_to_tangent: optional projection map enforcing tangent dynamics on a
             manifold (identity in the Euclidean case).
 
@@ -84,8 +85,21 @@ def form_lyndon_lift(
     """
     if base_point.ndim != 1:
         raise ValueError(f"base_point must be 1D, got shape {base_point.shape}.")
+    if len(vector_fields) != hopf.ambient_dimension:
+        raise ValueError(
+            "Number of vector fields must equal hopf.ambient_dimension "
+            f"({len(vector_fields)} != {hopf.ambient_dimension})."
+        )
     projector = project_to_tangent or (lambda _y, v: v)
     n_state = int(base_point.shape[0])
+
+    cached_words = hopf.lyndon_basis_by_degree
+    if not cached_words:
+        raise ValueError(
+            "ShuffleHopfAlgebra must be constructed via ShuffleHopfAlgebra.build "
+            "with cache_lyndon_basis=True to use form_lyndon_lift."
+        )
+    words_by_len = [jnp.asarray(level) for level in cached_words]
 
     words_tuples: list[list[tuple[int, ...]]] = []
     word_maps: list[dict[tuple[int, ...], int]] = []

@@ -70,7 +70,7 @@ def compute_path_signature(
             f"QuickSig requires 2D arrays of shape [seq_len, n_features]. Got shape: {path.shape}. \n Consider using path.reshape(-1, 1)."
         )
     seq_len, n_features = path.shape
-    hopf = ShuffleHopfAlgebra(n_features)
+    hopf = ShuffleHopfAlgebra.build(d=n_features, max_degree=depth)
     if seq_len <= 1:
         if mode == "full":
             zero_terms = [

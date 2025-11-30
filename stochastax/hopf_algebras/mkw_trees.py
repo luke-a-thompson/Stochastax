@@ -37,7 +37,7 @@ def _dyck_to_parent_preorder(dyck: list[int]) -> jnp.ndarray:
         else:
             # close and go up
             stack.pop()
-    return jnp.asarray(parent_py, dtype=jnp.int32)
+    return jnp.asarray(parent_py)
 
 
 def _enumerate_mkw_trees_n(n: int) -> MKWForest:
