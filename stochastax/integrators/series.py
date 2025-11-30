@@ -70,7 +70,7 @@ def form_lie_series(
 
     if basis_terms.shape[0] != coefficients_flat.shape[0]:
         raise ValueError(
-            f"Coefficient count {coefficients_flat.shape[0]} does not match number of basis terms {basis_terms.shape[0]}."
+            f"Signature coefficient count {coefficients_flat.shape[0]} does not match number of basis terms {basis_terms.shape[0]} in the vector field brackets."
         )
     series = jnp.tensordot(coefficients_flat, basis_terms, axes=1)
     return LieSeries(series)
