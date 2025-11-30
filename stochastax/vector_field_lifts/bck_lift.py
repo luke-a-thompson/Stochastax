@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from typing import Callable
 
-from stochastax.hopf_algebras.hopf_algebra_types import BCKForest
+from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import BCKBrackets
 from stochastax.vector_field_lifts.butcher import _build_children_from_parent
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
@@ -11,7 +11,7 @@ from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 def form_bck_brackets(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
-    forests_by_degree: list[BCKForest],
+    hopf: GLHopfAlgebra,
 ) -> BCKBrackets:
     """
     Build BCK brackets (unordered rooted forests) evaluated at a base point.
@@ -21,8 +21,8 @@ def form_bck_brackets(
             vector field per driver dimension.
         base_point: base point where the BCK elementary differentials' Jacobians are
             evaluated.
-        forests_by_degree: list where entry k encodes all BCK (unordered) rooted
-            forests of degree k+1, as BCKForest objects.
+        hopf: Hopf algebra containing the unordered forests metadata via
+            ``GLHopfAlgebra.build``.
 
     Returns:
         List storing [num_shapes_k * d^(k+1), n, n] Jacobians per forest degree
@@ -31,7 +31,19 @@ def form_bck_brackets(
     """
     if base_point.ndim != 1:
         raise ValueError(f"base_point must be a 1D array [n], got shape {base_point.shape}")
-    d = len(vector_fields)
+    forests_by_degree = hopf.forests_by_degree
+    if len(vector_fields) != hopf.ambient_dimension:
+        raise ValueError(
+            "Number of vector fields must equal hopf.ambient_dimension "
+            f"({len(vector_fields)} != {hopf.ambient_dimension})."
+        )
+    if not forests_by_degree:
+        raise ValueError(
+            "GLHopfAlgebra instance does not contain any forests. Ensure it "
+            "was constructed via GLHopfAlgebra.build."
+        )
+
+    d = hopf.ambient_dimension
     n_state = int(base_point.shape[0])
 
     results_by_degree: list[jax.Array] = []
@@ -47,7 +59,13 @@ def form_bck_brackets(
                 f"Inconsistent forest at index {degree_idx}: expected {degree_idx + 1} nodes, got {n_nodes}"
             )
 
+        expected_count = hopf.basis_size(degree_idx)
         if num_shapes == 0:
+            if expected_count != 0:
+                raise ValueError(
+                    f"Hopf expects {expected_count} basis elements at level {degree_idx}, "
+                    "but no forest shapes were provided."
+                )
             results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
             continue
 
@@ -88,10 +106,17 @@ def form_bck_brackets(
                 J = jax.jacrev(F_root_fn)(base_point)
                 level_mats.append(J)
 
-        if len(level_mats) == 0:
-            out = jnp.zeros((0, n_state, n_state), dtype=base_point.dtype)
-        else:
-            out = jnp.stack(level_mats, axis=0)
+        if len(level_mats) != expected_count:
+            raise ValueError(
+                f"Constructed {len(level_mats)} BCK brackets at level {degree_idx}, "
+                f"but hopf.basis_size reports {expected_count}."
+            )
+
+        out = (
+            jnp.zeros((0, n_state, n_state), dtype=base_point.dtype)
+            if len(level_mats) == 0
+            else jnp.stack(level_mats, axis=0)
+        )
         results_by_degree.append(out)
 
     return BCKBrackets(results_by_degree)

@@ -85,7 +85,7 @@ def main() -> None:
     A = _so3_generators()
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.0, 0.0, 1.0])
-    mkw_brackets = form_mkw_brackets(V, x0, forests, _project_to_tangent)
+    mkw_brackets = form_mkw_brackets(V, x0, hopf, _project_to_tangent)
 
     # words_by_len placeholder: use forests' parent arrays for filtering nonempty levels
     _ = [f.parent for f in forests]  # unused after API change
