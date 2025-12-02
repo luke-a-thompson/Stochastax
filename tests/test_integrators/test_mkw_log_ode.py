@@ -18,6 +18,7 @@ from tests.test_integrators.conftest import (
     _project_to_tangent,
     benchmark_wrapper,
     build_mkw_log_ode_inputs,
+    build_deterministic_increments,
     build_block_rotation_generators,
     build_block_initial_state,
     build_two_point_path,
@@ -224,15 +225,44 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
 MKW_BENCH_CASES = [
     pytest.param(1, 12, id="depth1"),
     pytest.param(1, 24, id="depth1-longer-path"),
+    pytest.param(2, 12, id="depth2-longer-path"),
+    pytest.param(2, 24, id="depth2-longer-path"),
 ]
 
 
-@pytest.mark.benchmark(group="log_ode_mkw")
+@pytest.mark.benchmark(group="log_ode_mkw_stepwise")
 @pytest.mark.parametrize("depth,steps", MKW_BENCH_CASES)
-def test_mkw_log_ode_benchmark_manifold(
+def test_mkw_log_ode_benchmark_manifold_stepwise(
     benchmark: BenchmarkFixture, depth: int, steps: int
 ) -> None:
-    """Benchmark the MKW manifold integrator on deterministic data."""
-    mkw_brackets, logsig, y0 = build_mkw_log_ode_inputs(depth, steps)
-    result = benchmark_wrapper(benchmark, log_ode, mkw_brackets, logsig, y0)
+    """Benchmark MKW manifold integration by stepping through increments."""
+    A = _so3_generators()
+    dim = A.shape[0]
+    forests = enumerate_mkw_trees(depth)
+    hopf = MKWHopfAlgebra.build(dim, forests)
+    vector_fields = _linear_vector_fields(A)
+    y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
+    mkw_brackets = form_mkw_brackets(vector_fields, y0, hopf, _project_to_tangent)
+    increments = build_deterministic_increments(dim, steps, seed=depth + steps, scale=0.03)
+
+    @jax.jit
+    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
+        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
+            seg_path = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
+            cov = jnp.zeros((1, dim, dim), dtype=inc.dtype)
+            signature = compute_planar_branched_signature(
+                path=seg_path,
+                order_m=depth,
+                hopf=hopf,
+                mode="full",
+                cov_increments=cov,
+            )
+            logsig = signature.log()
+            y_next = log_ode(mkw_brackets, logsig, carry)
+            return y_next, None
+
+        y_final, _ = jax.lax.scan(step, y_init, path_increments)
+        return y_final
+
+    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
     assert result.shape == y0.shape

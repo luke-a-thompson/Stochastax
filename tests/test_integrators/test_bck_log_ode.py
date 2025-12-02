@@ -14,8 +14,10 @@ from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
     benchmark_wrapper,
+    build_block_initial_state,
     build_bck_log_ode_inputs,
     build_block_rotation_generators,
+    build_deterministic_increments,
 )
 
 
@@ -38,22 +40,43 @@ def test_bck_log_ode_euclidean(
     assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
 
 
-BCK_BENCH_CASES = [
-    pytest.param(1, 1, 0.35, id="depth1-dim1"),
-    pytest.param(2, 2, 0.25, id="depth1-dim2"),
-    pytest.param(2, 5, 0.25, id="depth2-dim5"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_bck")
-@pytest.mark.parametrize("depth,dim,delta", BCK_BENCH_CASES)
-def test_bck_log_ode_benchmark_euclidean(
+@pytest.mark.benchmark(group="log_ode_bck_stepwise")
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("dim", [1, 3, 5])
+@pytest.mark.parametrize("steps", [12, 24])
+def test_bck_log_ode_benchmark_stepwise(
     benchmark: BenchmarkFixture,
     depth: int,
     dim: int,
-    delta: float,
+    steps: int,
 ) -> None:
-    """Benchmark the BCK variant of log-ODE in Euclidean space."""
-    bck_brackets, logsig, y0 = build_bck_log_ode_inputs(depth, dim, delta)
-    result = benchmark_wrapper(benchmark, log_ode, bck_brackets, logsig, y0)
+    """Benchmark BCK integration by stepping through deterministic increments."""
+    forests = enumerate_bck_trees(depth)
+    hopf = GLHopfAlgebra.build(dim, forests)
+    generators = build_block_rotation_generators(dim)
+    vector_fields = _linear_vector_fields(generators)
+    y0 = build_block_initial_state(dim)
+    bck_brackets = form_bck_brackets(vector_fields, y0, hopf)
+    increments = build_deterministic_increments(dim, steps, seed=depth + dim, scale=0.04)
+
+    @jax.jit
+    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
+        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
+            seg_path = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
+            cov = jnp.zeros((1, dim, dim), dtype=inc.dtype)
+            signature = compute_nonplanar_branched_signature(
+                path=seg_path,
+                order_m=depth,
+                hopf=hopf,
+                mode="full",
+                cov_increments=cov,
+            )
+            logsig = signature.log()
+            y_next = log_ode(bck_brackets, logsig, carry)
+            return y_next, None
+
+        y_final, _ = jax.lax.scan(step, y_init, path_increments)
+        return y_final
+
+    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
     assert result.shape == y0.shape

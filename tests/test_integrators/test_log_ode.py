@@ -6,6 +6,7 @@ from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.integrators.log_ode import log_ode
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.vector_field_lifts.lie_lift import (
     form_lyndon_brackets_from_words,
@@ -21,6 +22,7 @@ from tests.test_integrators.conftest import (
     build_standard_log_ode_inputs,
     build_standard_manifold_case,
     build_block_rotation_generators,
+    build_deterministic_increments,
 )
 
 
@@ -167,8 +169,8 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
 
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.1, -0.2, 0.3], dtype=jnp.float32)
-    words = enumerate_lyndon_basis(depth, dim)
-    nonlinear = form_lyndon_lift(V, x0, words)
+    hopf = ShuffleHopfAlgebra.build(d=dim, max_degree=depth, cache_lyndon_basis=True)
+    nonlinear = form_lyndon_lift(V, x0, hopf)
     words_direct = enumerate_lyndon_basis(depth, dim)
     linear = form_lyndon_brackets_from_words(A, words_direct)
 
@@ -253,37 +255,44 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
 
-STANDARD_BENCH_CASES = [
-    pytest.param(1, 1, 0.3, id="depth1-dim1"),
-    pytest.param(2, 2, 0.2, id="depth2-dim2"),
-    pytest.param(3, 8, 0.2, id="depth3-dim8"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_standard")
-@pytest.mark.parametrize("depth,dim,delta", STANDARD_BENCH_CASES)
-def test_log_ode_benchmark_standard(
+@pytest.mark.benchmark(group="log_ode_standard_stepwise")
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("dim", [1, 3, 5])
+@pytest.mark.parametrize("steps", [12, 24])
+def test_log_ode_benchmark_standard_stepwise(
     benchmark: BenchmarkFixture,
     depth: int,
     dim: int,
-    delta: float,
+    steps: int,
 ) -> None:
-    """Benchmark the Euclidean log-ODE step across depth/dim combos."""
-    brackets, primitive, y0 = build_standard_log_ode_inputs(depth, dim, delta)
-    result = benchmark_wrapper(benchmark, log_ode, brackets, primitive, y0)
+    """Benchmark Euclidean log-ODE by stepping through deterministic increments."""
+    # Reuse the standard Euclidean brackets/initial state; replace the control with a
+    # multi-step deterministic path.
+    brackets, _, y0 = build_standard_log_ode_inputs(depth, dim, delta=0.3)
+    increments = build_deterministic_increments(dim, steps, seed=0, scale=0.05)
+
+    @jax.jit
+    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
+        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
+            seg = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
+            primitive = compute_log_signature(seg, depth, "Lyndon words", mode="full")
+            y_next = log_ode(brackets, primitive, carry)
+            return y_next, None
+
+        y_final, _ = jax.lax.scan(step, y_init, path_increments)
+        return y_final
+
+    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
     assert result.shape == y0.shape
 
 
-MANIFOLD_BENCH_CASES = [
-    pytest.param(1, 32, id="depth1"),
-    pytest.param(2, 48, id="depth2"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_manifold")
-@pytest.mark.parametrize("depth,steps", MANIFOLD_BENCH_CASES)
-def test_log_ode_benchmark_manifold(benchmark: BenchmarkFixture, depth: int, steps: int) -> None:
-    """Benchmark a short manifold trajectory by scanning deterministic increments."""
+@pytest.mark.benchmark(group="log_ode_manifold_stepwise")
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("steps", [12, 24])
+def test_log_ode_benchmark_manifold_stepwise(
+    benchmark: BenchmarkFixture, depth: int, steps: int
+) -> None:
+    """Benchmark manifold integration by stepping through increments."""
     bracket_basis, increments, y0 = build_standard_manifold_case(depth, steps)
     dim: int = increments.shape[1]
 
