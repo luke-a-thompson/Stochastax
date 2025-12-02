@@ -1,10 +1,19 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
+from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.free_lie import commutator
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 from stochastax.vector_field_lifts import form_lyndon_brackets_from_words
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_lift
+from tests.test_integrators.conftest import (
+    _linear_vector_fields,
+    benchmark_wrapper,
+    build_block_rotation_generators,
+)
 
 
 def test_form_lyndon_brackets_single_letter() -> None:
@@ -228,3 +237,36 @@ def test_form_lyndon_brackets_consistency_with_duval() -> None:
     assert result[1].shape[0] == 1
     bracket_01_expected = commutator(A[0], A[1])
     np.testing.assert_allclose(result[1][0], bracket_01_expected, rtol=1e-10)
+
+
+LIFT_BENCH_CASES: list = [
+    pytest.param(2, 2, id="dim-2-depth-2"),
+    pytest.param(3, 3, id="dim-3-depth-3"),
+    pytest.param(8, 3, id="dim-8-depth-3"),
+]
+
+
+@pytest.mark.benchmark(group="lyndon_lift")
+@pytest.mark.parametrize("dim,depth", LIFT_BENCH_CASES)
+def test_lyndon_lift_benchmark_linear_block_rotation(
+    benchmark: BenchmarkFixture,
+    dim: int,
+    depth: int,
+) -> None:
+    """Benchmark nonlinear Lyndon lift build for simple linear block-rotation fields.
+
+    This isolates the overhead of ``form_lyndon_lift`` so micro-optimisations
+    (e.g. batched per-level Jacobians) are visible outside integrator tests.
+    """
+    generators = build_block_rotation_generators(dim)
+    n_state = int(generators.shape[-1])
+    vector_fields = _linear_vector_fields(generators)
+    base_point = jnp.linspace(0.1, 0.2, num=n_state, dtype=jnp.float32)
+    hopf = ShuffleHopfAlgebra.build(d=dim, max_degree=depth, cache_lyndon_basis=True)
+
+    compiled = jax.jit(lambda y: form_lyndon_lift(vector_fields, y, hopf))
+    brackets = benchmark_wrapper(benchmark, compiled, base_point)
+
+    # Basic sanity checks to keep this a proper test.
+    assert isinstance(brackets, list)
+    assert len(brackets) == depth

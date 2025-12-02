@@ -4,7 +4,6 @@ import pytest
 from jax.scipy.linalg import expm as jexpm
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.controls.drivers import bm_driver
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
