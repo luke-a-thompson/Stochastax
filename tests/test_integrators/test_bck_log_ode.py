@@ -80,3 +80,18 @@ def test_bck_log_ode_benchmark_stepwise(
 
     result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
     assert result.shape == y0.shape
+
+
+def test_form_bck_brackets_jittable() -> None:
+    depth = 2
+    dim = 2
+    forests = enumerate_bck_trees(depth)
+    hopf = GLHopfAlgebra.build(dim, forests)
+    generators = build_block_rotation_generators(dim)
+    vector_fields = _linear_vector_fields(generators)
+    y0 = build_block_initial_state(dim)
+
+    compiled = jax.jit(lambda bp: form_bck_brackets(vector_fields, bp, hopf))
+    brackets = compiled(y0)
+
+    assert len(brackets) == depth

@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
+from typing import Callable
 from jax.scipy.linalg import expm as jexpm
 from pytest_benchmark.fixture import BenchmarkFixture
 
@@ -24,6 +25,21 @@ from tests.test_integrators.conftest import (
     build_block_rotation_generators,
     build_deterministic_increments,
 )
+
+
+def _simple_vector_fields(dim: int) -> list:
+    mats = jnp.stack(
+        [jnp.eye(dim, dtype=jnp.float32) * float(i + 1) for i in range(dim)],
+        axis=0,
+    )
+
+    def make_field(matrix: jax.Array) -> Callable[[jax.Array], jax.Array]:
+        def vf(y: jax.Array) -> jax.Array:
+            return matrix @ y
+
+        return vf
+
+    return [make_field(mats[i]) for i in range(dim)]
 
 
 def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
@@ -177,6 +193,19 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
     for non_level, lin_level in zip(nonlinear, linear):
         assert non_level.shape == lin_level.shape
         assert jnp.allclose(non_level, lin_level, rtol=1e-6, atol=1e-6)
+
+
+def test_form_lyndon_lift_jittable() -> None:
+    dim = 2
+    depth = 2
+    hopf = ShuffleHopfAlgebra.build(d=dim, max_degree=depth, cache_lyndon_basis=True)
+    vector_fields = _simple_vector_fields(dim)
+    base_point = jnp.linspace(0.1, 0.2, num=dim, dtype=jnp.float32)
+
+    compiled = jax.jit(lambda bp: form_lyndon_lift(vector_fields, bp, hopf))
+    brackets = compiled(base_point)
+
+    assert len(brackets) == depth
 
 
 @pytest.mark.parametrize("brownian_path_fixture", [(1, 200)], indirect=True)

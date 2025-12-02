@@ -2,6 +2,7 @@ from typing import Callable
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 from stochastax.hopf_algebras.free_lie import (
@@ -94,68 +95,38 @@ def form_lyndon_lift(
     n_state = int(base_point.shape[0])
 
     cached_words = hopf.lyndon_basis_by_degree
+    prefix_level_by_degree = hopf.lyndon_prefix_level_by_degree
+    prefix_index_by_degree = hopf.lyndon_prefix_index_by_degree
+    suffix_level_by_degree = hopf.lyndon_suffix_level_by_degree
+    suffix_index_by_degree = hopf.lyndon_suffix_index_by_degree
     if not cached_words:
         raise ValueError(
             "ShuffleHopfAlgebra must be constructed via ShuffleHopfAlgebra.build "
             "with cache_lyndon_basis=True to use form_lyndon_lift."
         )
-    words_by_len = [jnp.asarray(level) for level in cached_words]
-
-    words_tuples: list[list[tuple[int, ...]]] = []
-    word_maps: list[dict[tuple[int, ...], int]] = []
-    for words in words_by_len:
-        if words.size == 0:
-            words_tuples.append([])
-            word_maps.append({})
-            continue
-        tuples_level: list[tuple[int, ...]] = []
-        index_map: dict[tuple[int, ...], int] = {}
-        for idx in range(words.shape[0]):
-            word_tuple = tuple(int(v) for v in words[idx].tolist())
-            tuples_level.append(word_tuple)
-            index_map[word_tuple] = idx
-        words_tuples.append(tuples_level)
-        word_maps.append(index_map)
-
-    splits_by_len: list[list[int]] = [[]]
-    for level_idx in range(1, len(words_tuples)):
-        level_words = words_tuples[level_idx]
-        if not level_words:
-            splits_by_len.append([])
-            continue
-        splits: list[int] = []
-        for word in level_words:
-            L = len(word)
-            split_found = None
-            for split in range(L - 1, 0, -1):
-                prefix = word[:split]
-                suffix = word[split:]
-                prefix_len = len(prefix)
-                suffix_len = len(suffix)
-                prefix_ok = prefix_len == 1 or prefix in word_maps[prefix_len - 1]
-                suffix_ok = suffix_len == 1 or suffix in word_maps[suffix_len - 1]
-                if prefix_ok and suffix_ok:
-                    split_found = split
-                    break
-            if split_found is None:
-                raise ValueError(f"Unable to split Lyndon word {word}.")
-            splits.append(split_found)
-        splits_by_len.append(splits)
+    if not (
+        len(cached_words)
+        == len(prefix_level_by_degree)
+        == len(prefix_index_by_degree)
+        == len(suffix_level_by_degree)
+        == len(suffix_index_by_degree)
+    ):
+        raise ValueError("ShuffleHopfAlgebra Lyndon caches are inconsistent.")
 
     vector_field_funcs: list[list[Callable[[jax.Array], jax.Array]]] = []
-    func_maps: list[dict[tuple[int, ...], Callable[[jax.Array], jax.Array]]] = []
 
-    for level_idx, level_words in enumerate(words_tuples):
+    for level_idx, words_level in enumerate(cached_words):
+        words_np = np.asarray(words_level)
+        num_words = int(words_np.shape[0])
         funcs_level: list[Callable[[jax.Array], jax.Array]] = []
-        lookup: dict[tuple[int, ...], Callable[[jax.Array], jax.Array]] = {}
-        if not level_words:
+
+        if num_words == 0:
             vector_field_funcs.append(funcs_level)
-            func_maps.append(lookup)
             continue
 
         if level_idx == 0:
-            for word in level_words:
-                letter = word[0]
+            for word in words_np:
+                letter = int(word[0])
 
                 def make_leaf(index: int) -> Callable[[jax.Array], jax.Array]:
                     def leaf(y: jax.Array) -> jax.Array:
@@ -165,17 +136,21 @@ def form_lyndon_lift(
 
                 fn = make_leaf(letter)
                 funcs_level.append(fn)
-                lookup[word] = fn
         else:
-            splits = splits_by_len[level_idx]
-            for word_idx, word in enumerate(level_words):
-                split = splits[word_idx]
-                prefix = word[:split]
-                suffix = word[split:]
-                prefix_fn = func_maps[len(prefix) - 1].get(prefix)
-                suffix_fn = func_maps[len(suffix) - 1].get(suffix)
-                if prefix_fn is None or suffix_fn is None:
-                    raise KeyError(f"Missing Lyndon prefix or suffix for word {word}.")
+            prefix_levels = np.asarray(prefix_level_by_degree[level_idx])
+            prefix_indices = np.asarray(prefix_index_by_degree[level_idx])
+            suffix_levels = np.asarray(suffix_level_by_degree[level_idx])
+            suffix_indices = np.asarray(suffix_index_by_degree[level_idx])
+
+            for word_idx in range(num_words):
+                prefix_level = int(prefix_levels[word_idx])
+                prefix_index = int(prefix_indices[word_idx])
+                suffix_level = int(suffix_levels[word_idx])
+                suffix_index = int(suffix_indices[word_idx])
+                if prefix_level < 0 or suffix_level < 0:
+                    raise ValueError("Invalid Lyndon prefix/suffix metadata encountered.")
+                prefix_fn = vector_field_funcs[prefix_level][prefix_index]
+                suffix_fn = vector_field_funcs[suffix_level][suffix_index]
 
                 def make_bracket(
                     f_left: Callable[[jax.Array], jax.Array],
@@ -192,10 +167,8 @@ def form_lyndon_lift(
 
                 fn = make_bracket(prefix_fn, suffix_fn)
                 funcs_level.append(fn)
-                lookup[word] = fn
 
         vector_field_funcs.append(funcs_level)
-        func_maps.append(lookup)
 
     brackets_by_len: list[jax.Array] = []
     for funcs_level in vector_field_funcs:

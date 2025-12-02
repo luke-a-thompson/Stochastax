@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import NamedTuple, NewType, final, override, Optional
+from typing import NamedTuple, NewType, final, override, Optional, Sequence
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+import numpy as np
 import jax
 import jax.numpy as jnp
 from stochastax.tensor_ops import cauchy_convolution
+from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis, build_lyndon_dependency_tables
 
 
 class HopfAlgebra(ABC):
@@ -72,6 +74,11 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     max_degree: int = 0
     shape_count_by_degree: list[int] = field(default_factory=list)
     lyndon_basis_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    lyndon_split_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    lyndon_prefix_level_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    lyndon_prefix_index_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    lyndon_suffix_level_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    lyndon_suffix_index_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
 
     @classmethod
     def build(
@@ -84,18 +91,32 @@ class ShuffleHopfAlgebra(HopfAlgebra):
         if max_degree <= 0:
             raise ValueError(f"max_degree must be >= 1, got {max_degree}.")
         shape_counts = [int(d ** (level + 1)) for level in range(max_degree)]
+        lyndon_tuple: tuple[jax.Array, ...] = tuple()
+        split_tuple: tuple[jax.Array, ...] = tuple()
+        prefix_level_tuple: tuple[jax.Array, ...] = tuple()
+        prefix_index_tuple: tuple[jax.Array, ...] = tuple()
+        suffix_level_tuple: tuple[jax.Array, ...] = tuple()
+        suffix_index_tuple: tuple[jax.Array, ...] = tuple()
         if cache_lyndon_basis:
-            from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
-
             lyndon_levels = enumerate_lyndon_basis(max_degree, d)
+            (
+                split_tuple,
+                prefix_level_tuple,
+                prefix_index_tuple,
+                suffix_level_tuple,
+                suffix_index_tuple,
+            ) = build_lyndon_dependency_tables(lyndon_levels)
             lyndon_tuple = tuple(lyndon_levels)
-        else:
-            lyndon_tuple: tuple[jax.Array, ...] = tuple()
         return cls(
             ambient_dimension=d,
             max_degree=max_degree,
             shape_count_by_degree=shape_counts,
             lyndon_basis_by_degree=lyndon_tuple,
+            lyndon_split_by_degree=split_tuple,
+            lyndon_prefix_level_by_degree=prefix_level_tuple,
+            lyndon_prefix_index_by_degree=prefix_index_tuple,
+            lyndon_suffix_level_by_degree=suffix_level_tuple,
+            lyndon_suffix_index_by_degree=suffix_index_tuple,
         )
 
     @override
@@ -226,6 +247,95 @@ MKWForest = NewType("MKWForest", Forest)
 BCKForest = NewType("BCKForest", Forest)
 
 
+def _build_children_from_parent(parent: list[int]) -> list[list[int]]:
+    children: list[list[int]] = [[] for _ in range(len(parent))]
+    for i in range(1, len(parent)):
+        p = parent[i]
+        if p >= 0:
+            children[p].append(i)
+    return children
+
+
+def _postorder(children: list[list[int]]) -> list[int]:
+    order: list[int] = []
+
+    def dfs(node: int) -> None:
+        for child in children[node]:
+            dfs(child)
+        order.append(node)
+
+    if not children:
+        return order
+    dfs(0)
+    return order
+
+
+def _build_children_eval_tables(
+    forests: Sequence[Forest] | Sequence[MKWForest] | Sequence[BCKForest],
+) -> tuple[
+    tuple[jax.Array, ...],
+    tuple[jax.Array, ...],
+    tuple[jax.Array, ...],
+]:
+    children_tables: list[jax.Array] = []
+    child_counts_tables: list[jax.Array] = []
+    eval_orders_tables: list[jax.Array] = []
+    for forest in forests:
+        parents = jnp.asarray(forest.parent)
+        if parents.ndim != 2:
+            raise ValueError("Forest.parent must have shape [num_shapes, n_nodes].")
+        num_shapes = int(parents.shape[0])
+        n_nodes = int(parents.shape[1]) if parents.shape[1:] else 0
+        if num_shapes == 0 or n_nodes == 0:
+            children_tables.append(
+                jnp.zeros((num_shapes, n_nodes, 0), dtype=jnp.int32)
+            )
+            child_counts_tables.append(jnp.zeros((num_shapes, n_nodes), dtype=jnp.int32))
+            eval_orders_tables.append(jnp.zeros((num_shapes, n_nodes), dtype=jnp.int32))
+            continue
+
+        child_lists_per_shape: list[list[list[int]]] = []
+        eval_orders_per_shape: list[list[int]] = []
+        max_children = 0
+        for shape_idx in range(num_shapes):
+            parent_row = list(map(int, parents[shape_idx].tolist()))
+            children = _build_children_from_parent(parent_row)
+            child_lists_per_shape.append(children)
+            local_max = max((len(c) for c in children), default=0)
+            max_children = max(max_children, local_max)
+            eval_orders_per_shape.append(_postorder(children))
+
+        width = max_children if max_children > 0 else 0
+        children_np = np.full(
+            (num_shapes, n_nodes, width),
+            -1,
+            dtype=np.int32,
+        )
+        child_counts_np = np.zeros((num_shapes, n_nodes), dtype=np.int32)
+        eval_order_np = np.zeros((num_shapes, n_nodes), dtype=np.int32)
+
+        for shape_idx, children in enumerate(child_lists_per_shape):
+            for node_idx, c_list in enumerate(children):
+                child_counts_np[shape_idx, node_idx] = len(c_list)
+                for slot_idx, child in enumerate(c_list):
+                    if width == 0:
+                        break
+                    children_np[shape_idx, node_idx, slot_idx] = child
+            eval_order_np[shape_idx, :] = np.asarray(
+                eval_orders_per_shape[shape_idx], dtype=np.int32
+            )
+
+        children_tables.append(jnp.asarray(children_np))
+        child_counts_tables.append(jnp.asarray(child_counts_np))
+        eval_orders_tables.append(jnp.asarray(eval_order_np))
+
+    return (
+        tuple(children_tables),
+        tuple(child_counts_tables),
+        tuple(eval_orders_tables),
+    )
+
+
 @dataclass(frozen=True, eq=False)
 class GLHopfAlgebra(HopfAlgebra):
     """Grossman-Larson / Connes-Kreimer Hopf algebra on unordered rooted forests.
@@ -240,6 +350,9 @@ class GLHopfAlgebra(HopfAlgebra):
     degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
     shape_count_by_degree: list[int] = field(default_factory=list)
     forests_by_degree: tuple[BCKForest, ...] = field(default_factory=tuple)
+    children_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
 
     @override
     def basis_size(self, level: int) -> int:
@@ -280,12 +393,20 @@ class GLHopfAlgebra(HopfAlgebra):
                     rows.append(row)
                 deg2_map = jnp.asarray(rows, dtype=jnp.int32)
         shape_counts = [int(f.parent.shape[0]) for f in forests]
+        (
+            children_tables,
+            child_counts_tables,
+            eval_orders_tables,
+        ) = _build_children_eval_tables(forests)
         return cls(
             ambient_dimension=d,
             degree2_chain_indices=deg2_map,
             max_order=len(forests),
             shape_count_by_degree=shape_counts,
             forests_by_degree=tuple(forests),
+            children_by_degree=children_tables,
+            child_counts_by_degree=child_counts_tables,
+            eval_order_by_degree=eval_orders_tables,
         )
 
     @override
@@ -368,6 +489,9 @@ class MKWHopfAlgebra(HopfAlgebra):
     degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
     shape_count_by_degree: list[int] = field(default_factory=list)
     forests_by_degree: tuple[MKWForest, ...] = field(default_factory=tuple)
+    children_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
 
     @override
     def basis_size(self, level: int) -> int:
@@ -407,12 +531,20 @@ class MKWHopfAlgebra(HopfAlgebra):
                     rows.append(row)
                 deg2_map = jnp.asarray(rows, dtype=jnp.int32)
         shape_counts = [int(f.parent.shape[0]) for f in forests]
+        (
+            children_tables,
+            child_counts_tables,
+            eval_orders_tables,
+        ) = _build_children_eval_tables(forests)
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
             max_order=len(forests),
             shape_count_by_degree=shape_counts,
             forests_by_degree=tuple(forests),
+            children_by_degree=children_tables,
+            child_counts_by_degree=child_counts_tables,
+            eval_order_by_degree=eval_orders_tables,
         )
 
     @override

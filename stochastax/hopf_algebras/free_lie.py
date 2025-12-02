@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from collections import defaultdict
+from typing import List, Tuple, Dict
 
 
 def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -31,6 +32,127 @@ def enumerate_lyndon_basis(depth: int, dim: int) -> list[jax.Array]:
             word.pop()
 
     return [jnp.stack(list_of_words[i]) for i in range(depth)]
+
+
+def build_lyndon_dependency_tables(
+    words_by_len: list[jax.Array],
+) -> tuple[
+    tuple[jax.Array, ...],
+    tuple[jax.Array, ...],
+    tuple[jax.Array, ...],
+    tuple[jax.Array, ...],
+    tuple[jax.Array, ...],
+]:
+    """Precompute Lyndon split/prefix/suffix metadata per level.
+
+    Args:
+        words_by_len: output of ``enumerate_lyndon_basis`` grouping Lyndon words
+            by length (indexing by level = length - 1).
+
+    Returns:
+        Tuple of five tuples (per level):
+            - splits[level]: int32 array [N_level] giving the split position of each word
+              (0 for length-1 words).
+            - prefix_levels[level]: int32 array of Lyndon levels for prefixes
+              (-1 for length-1 words).
+            - prefix_indices[level]: int32 array of prefix indices within that level
+              (-1 for length-1 words).
+            - suffix_levels[level]: same as prefix but for suffix.
+            - suffix_indices[level]: suffix indices.
+    """
+
+    tuple_levels: List[List[Tuple[int, ...]]] = []
+    index_maps: List[Dict[Tuple[int, ...], int]] = []
+    for words in words_by_len:
+        if words.size == 0:
+            tuple_levels.append([])
+            index_maps.append({})
+            continue
+        tuples_level: List[Tuple[int, ...]] = []
+        index_map: Dict[Tuple[int, ...], int] = {}
+        for idx in range(words.shape[0]):
+            word_tuple = tuple(int(v) for v in words[idx].tolist())
+            tuples_level.append(word_tuple)
+            index_map[word_tuple] = idx
+        tuple_levels.append(tuples_level)
+        index_maps.append(index_map)
+
+    splits: List[jax.Array] = []
+    prefix_levels: List[jax.Array] = []
+    prefix_indices: List[jax.Array] = []
+    suffix_levels: List[jax.Array] = []
+    suffix_indices: List[jax.Array] = []
+
+    for level_idx, level_words in enumerate(tuple_levels):
+        if not level_words:
+            splits.append(jnp.zeros((0,), dtype=jnp.int32))
+            prefix_levels.append(jnp.zeros((0,), dtype=jnp.int32))
+            prefix_indices.append(jnp.zeros((0,), dtype=jnp.int32))
+            suffix_levels.append(jnp.zeros((0,), dtype=jnp.int32))
+            suffix_indices.append(jnp.zeros((0,), dtype=jnp.int32))
+            continue
+
+        level_splits: List[int] = []
+        level_prefix_levels: List[int] = []
+        level_prefix_indices: List[int] = []
+        level_suffix_levels: List[int] = []
+        level_suffix_indices: List[int] = []
+
+        for word in level_words:
+            word_len = len(word)
+            if word_len == 1:
+                level_splits.append(0)
+                level_prefix_levels.append(-1)
+                level_prefix_indices.append(-1)
+                level_suffix_levels.append(-1)
+                level_suffix_indices.append(-1)
+                continue
+
+            split_found = None
+            found_prefix_level = -1
+            found_prefix_idx = -1
+            found_suffix_level = -1
+            found_suffix_idx = -1
+            for split in range(word_len - 1, 0, -1):
+                prefix = word[:split]
+                suffix = word[split:]
+                prefix_len = len(prefix)
+                suffix_len = len(suffix)
+                prefix_level = prefix_len - 1
+                suffix_level = suffix_len - 1
+                prefix_map = index_maps[prefix_level]
+                suffix_map = index_maps[suffix_level]
+                prefix_ok = prefix in prefix_map
+                suffix_ok = suffix in suffix_map
+                if prefix_ok and suffix_ok:
+                    split_found = split
+                    found_prefix_level = prefix_level
+                    found_suffix_level = suffix_level
+                    found_prefix_idx = prefix_map[prefix]
+                    found_suffix_idx = suffix_map[suffix]
+                    break
+            if split_found is None:
+                raise ValueError(f"Unable to split Lyndon word {word}.")
+
+            level_splits.append(split_found)
+            level_prefix_levels.append(found_prefix_level)
+            level_prefix_indices.append(found_prefix_idx)
+            level_suffix_levels.append(found_suffix_level)
+            level_suffix_indices.append(found_suffix_idx)
+
+        splits.append(jnp.asarray(level_splits, dtype=jnp.int32))
+        prefix_levels.append(jnp.asarray(level_prefix_levels, dtype=jnp.int32))
+        prefix_indices.append(jnp.asarray(level_prefix_indices, dtype=jnp.int32))
+        suffix_levels.append(jnp.asarray(level_suffix_levels, dtype=jnp.int32))
+        suffix_indices.append(jnp.asarray(level_suffix_indices, dtype=jnp.int32))
+
+    return (
+        tuple(splits),
+        tuple(prefix_levels),
+        tuple(prefix_indices),
+        tuple(suffix_levels),
+        tuple(suffix_indices),
+    )
 
 def find_split_points_vectorized(
     words: jax.Array,

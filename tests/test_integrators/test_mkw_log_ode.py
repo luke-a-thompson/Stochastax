@@ -266,3 +266,20 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
 
     result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
     assert result.shape == y0.shape
+
+
+def test_form_mkw_brackets_jittable() -> None:
+    depth = 2
+    dim = 2
+    forests = enumerate_mkw_trees(depth)
+    hopf = MKWHopfAlgebra.build(dim, forests)
+    generators = build_block_rotation_generators(dim)
+    vector_fields = _linear_vector_fields(generators)
+    y0 = build_block_initial_state(dim)
+
+    compiled = jax.jit(
+        lambda bp: form_mkw_brackets(vector_fields, bp, hopf, lambda _, v: v)
+    )
+    brackets = compiled(y0)
+
+    assert len(brackets) == depth

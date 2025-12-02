@@ -1,10 +1,10 @@
 import jax
 import jax.numpy as jnp
-from typing import Callable
+import numpy as np
+from typing import Callable, Optional
 
 from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import BCKBrackets
-from stochastax.vector_field_lifts.butcher import _build_children_from_parent
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
@@ -42,6 +42,14 @@ def form_bck_brackets(
             "GLHopfAlgebra instance does not contain any forests. Ensure it "
             "was constructed via GLHopfAlgebra.build."
         )
+    if (
+        not hopf.children_by_degree
+        or not hopf.child_counts_by_degree
+        or not hopf.eval_order_by_degree
+    ):
+        raise ValueError(
+            "GLHopfAlgebra is missing cached children metadata. Rebuild via GLHopfAlgebra.build()."
+        )
 
     d = hopf.ambient_dimension
     n_state = int(base_point.shape[0])
@@ -49,7 +57,7 @@ def form_bck_brackets(
     results_by_degree: list[jax.Array] = []
 
     for degree_idx, forest in enumerate(forests_by_degree):
-        parents = jnp.asarray(forest.parent)
+        parents = np.asarray(forest.parent)
         if parents.ndim != 2:
             raise ValueError("Each BCKForest.parent must have shape [num_shapes, n_nodes]")
         num_shapes = int(parents.shape[0])
@@ -69,6 +77,13 @@ def form_bck_brackets(
             results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
             continue
 
+        children_table = hopf.children_by_degree[degree_idx]
+        child_counts_table = hopf.child_counts_by_degree[degree_idx]
+        eval_order_table = hopf.eval_order_by_degree[degree_idx]
+        children_np = np.asarray(children_table)
+        child_counts_np = np.asarray(child_counts_table)
+        eval_order_np = np.asarray(eval_order_table)
+
         num_colours = d**n_nodes
         level_mats: list[jax.Array] = []
 
@@ -76,33 +91,58 @@ def form_bck_brackets(
             parent_row = list(map(int, parents[shape_id].tolist()))
             if parent_row[0] != -1:
                 raise ValueError("Invalid parent encoding: parent[0] must be -1 for the root")
-            children = _build_children_from_parent(parent_row)
+            child_counts = child_counts_np[shape_id]
+            children_indices = children_np[shape_id]
+            eval_order = eval_order_np[shape_id]
 
             def build_node_function(
-                node_index: int, colours: list[int]
+                colours: list[int],
             ) -> Callable[[jax.Array], jax.Array]:
-                child_indices = children[node_index]
-                colour = colours[node_index]
-                if len(child_indices) == 0:
-                    return vector_fields[colour]
-                child_funcs = [build_node_function(ci, colours) for ci in child_indices]
+                node_funcs: list[Optional[Callable[[jax.Array], jax.Array]]] = [None] * n_nodes
+                for node_idx in eval_order:
+                    node_idx = int(node_idx)
+                    colour = colours[node_idx]
+                    num_children = int(child_counts[node_idx])
+                    if num_children == 0:
+                        node_funcs[node_idx] = vector_fields[colour]
+                        continue
+                    child_ids = [
+                        int(children_indices[node_idx, slot])
+                        for slot in range(num_children)
+                    ]
+                    child_funcs: list[Callable[[jax.Array], jax.Array]] = []
+                    for c_idx in child_ids:
+                        child_fn = node_funcs[c_idx]
+                        if child_fn is None:
+                            raise ValueError("Encountered unset child function in BCK lift.")
+                        child_funcs.append(child_fn)
 
-                def h(y: jax.Array) -> jax.Array:
-                    g = vector_fields[colour]
-                    for cf in child_funcs:
+                    def make_node(
+                        colour_idx: int,
+                        funcs: list[Callable[[jax.Array], jax.Array]],
+                    ) -> Callable[[jax.Array], jax.Array]:
+                        def node_fn(y: jax.Array) -> jax.Array:
+                            g = vector_fields[colour_idx]
+                            for cf in funcs:
 
-                        def g_next(z: jax.Array, g=g, cf=cf) -> jax.Array:
-                            _, dg_v = jax.jvp(g, (z,), (cf(z),))
-                            return dg_v
+                                def g_next(z: jax.Array, g=g, cf=cf) -> jax.Array:
+                                    _, dg_v = jax.jvp(g, (z,), (cf(z),))
+                                    return dg_v
 
-                        g = g_next
-                    return g(y)
+                                g = g_next
+                            return g(y)
 
-                return h
+                        return node_fn
+
+                    node_funcs[node_idx] = make_node(colour, child_funcs)
+
+                root_fn = node_funcs[0]
+                assert root_fn is not None
+                return root_fn
 
             for colour_index in range(num_colours):
                 colours = unrank_base_d(colour_index, n_nodes, d)
-                F_root_fn = build_node_function(0, colours)
+                F_root_fn = build_node_function(colours)
                 J = jax.jacrev(F_root_fn)(base_point)
                 level_mats.append(J)
 
