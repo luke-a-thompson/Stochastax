@@ -134,7 +134,7 @@ def form_lyndon_lift(
 
                     return leaf
 
-                fn = make_leaf(letter)
+                fn = jax.jit(make_leaf(letter))
                 funcs_level.append(fn)
         else:
             prefix_levels = np.asarray(prefix_level_by_degree[level_idx])
@@ -165,7 +165,7 @@ def form_lyndon_lift(
 
                     return bracket
 
-                fn = make_bracket(prefix_fn, suffix_fn)
+                fn = jax.jit(make_bracket(prefix_fn, suffix_fn))
                 funcs_level.append(fn)
 
         vector_field_funcs.append(funcs_level)
