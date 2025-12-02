@@ -222,11 +222,9 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     assert jnp.allclose(cov_xy, target_cov, rtol=0.2, atol=0.03)
 
 
-MKW_BENCH_CASES = [
-    pytest.param(1, 12, id="depth1"),
-    pytest.param(1, 24, id="depth1-longer-path"),
-    pytest.param(2, 12, id="depth2-longer-path"),
-    pytest.param(2, 24, id="depth2-longer-path"),
+MKW_BENCH_CASES: list = [
+    pytest.param(1, 12, id="depth-1-dim-3-step-12"),
+    pytest.param(2, 12, id="depth-2-dim-3-step-12"),
 ]
 
 
@@ -277,9 +275,7 @@ def test_form_mkw_brackets_jittable() -> None:
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
 
-    compiled = jax.jit(
-        lambda bp: form_mkw_brackets(vector_fields, bp, hopf, lambda _, v: v)
-    )
+    compiled = jax.jit(lambda bp: form_mkw_brackets(vector_fields, bp, hopf, lambda _, v: v))
     brackets = compiled(y0)
 
     assert len(brackets) == depth

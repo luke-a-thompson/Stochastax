@@ -284,10 +284,24 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
 
+LOG_ODE_STANDARD_BENCH_CASES: list = [
+    pytest.param(1, 1, 12, id="depth-1-dim-1-step-12"),
+    pytest.param(1, 8, 12, id="depth-1-dim-8-step-12"),
+    pytest.param(1, 24, 12, id="depth-1-dim-24-step-12"),
+    pytest.param(2, 1, 12, id="depth-2-dim-1-step-12"),
+    pytest.param(2, 8, 12, id="depth-2-dim-8-step-12"),
+    pytest.param(2, 24, 12, id="depth-2-dim-24-step-12"),
+    pytest.param(3, 1, 12, id="depth-3-dim-1-step-12"),
+    pytest.param(3, 8, 12, id="depth-3-dim-8-step-12"),
+    pytest.param(3, 24, 12, id="depth-3-dim-24-step-12"),
+]
+
+
 @pytest.mark.benchmark(group="log_ode_standard_stepwise")
-@pytest.mark.parametrize("depth", [1, 2])
-@pytest.mark.parametrize("dim", [1, 3, 5])
-@pytest.mark.parametrize("steps", [12, 24])
+@pytest.mark.parametrize(
+    "depth,dim,steps",
+    LOG_ODE_STANDARD_BENCH_CASES,
+)
 def test_log_ode_benchmark_standard_stepwise(
     benchmark: BenchmarkFixture,
     depth: int,
@@ -315,9 +329,18 @@ def test_log_ode_benchmark_standard_stepwise(
     assert result.shape == y0.shape
 
 
+LOG_ODE_MANIFOLD_BENCH_CASES: list = [
+    pytest.param(1, 12, id="depth-1-dim-3-step-12"),
+    pytest.param(2, 12, id="depth-2-dim-3-step-12"),
+    pytest.param(3, 12, id="depth-3-dim-3-step-12"),
+]
+
+
 @pytest.mark.benchmark(group="log_ode_manifold_stepwise")
-@pytest.mark.parametrize("depth", [1, 2])
-@pytest.mark.parametrize("steps", [12, 24])
+@pytest.mark.parametrize(
+    "depth,steps",
+    LOG_ODE_MANIFOLD_BENCH_CASES,
+)
 def test_log_ode_benchmark_manifold_stepwise(
     benchmark: BenchmarkFixture, depth: int, steps: int
 ) -> None:

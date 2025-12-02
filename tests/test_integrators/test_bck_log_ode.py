@@ -40,10 +40,21 @@ def test_bck_log_ode_euclidean(
     assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
 
 
+BCK_BENCH_CASES: list = [
+    pytest.param(1, 1, 12, id="depth-1-dim-1-step-12"),
+    pytest.param(1, 8, 12, id="depth-1-dim-8-step-12"),
+    pytest.param(1, 24, 12, id="depth-1-dim-24-step-12"),
+    pytest.param(2, 1, 12, id="depth-2-dim-1-step-12"),
+    pytest.param(2, 8, 12, id="depth-2-dim-8-step-12"),
+    pytest.param(2, 24, 12, id="depth-2-dim-24-step-12"),
+]
+
+
 @pytest.mark.benchmark(group="log_ode_bck_stepwise")
-@pytest.mark.parametrize("depth", [1, 2])
-@pytest.mark.parametrize("dim", [1, 3, 5])
-@pytest.mark.parametrize("steps", [12, 24])
+@pytest.mark.parametrize(
+    "depth,dim,steps",
+    BCK_BENCH_CASES,
+)
 def test_bck_log_ode_benchmark_stepwise(
     benchmark: BenchmarkFixture,
     depth: int,

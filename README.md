@@ -38,7 +38,7 @@ uv sync --all-extras
 
 Run Benchmarks
 ```bash
-uv run pytest --benchmark-only
+  uv run pytest --benchmark-only --benchmark-autosave
 ```
 
 ## Quick Start
