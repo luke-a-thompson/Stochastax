@@ -72,7 +72,7 @@ include = ["/stochastax", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=stochastax --cov-report=term-missing"
+addopts = "-v --cov=stochastax --cov-report=term-missing --benchmark-autosave --benchmark-compare=baseline --benchmark-compare-fail=mean:5%"
 minversion = "8.0"
 
 [tool.mypy]
