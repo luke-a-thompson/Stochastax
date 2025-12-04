@@ -11,6 +11,7 @@ _test_key = jax.random.PRNGKey(42)
 BENCH_SHUFFLE_CASES: list = [
     pytest.param(2, 2, id="dim-2-depth-2"),
     pytest.param(8, 2, id="dim-8-depth-2"),
+    pytest.param(16, 2, id="dim-16-depth-2"),
     pytest.param(3, 3, id="dim-3-depth-3"),
     pytest.param(8, 3, id="dim-8-depth-3"),
 ]
