@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import jax
 import jax.numpy as jnp
-from stochastax.tensor_ops import cauchy_convolution
+from stochastax.tensor_ops import tensor_product
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis, build_lyndon_dependency_tables
 from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
 from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
@@ -150,15 +150,55 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     def _flatten_levels(self, levels: list[jax.Array]) -> list[jax.Array]:
         return [term.reshape(-1) for term in levels]
 
+    def _cauchy_convolution(
+        self, a_levels: list[jax.Array], b_levels: list[jax.Array]
+    ) -> list[jax.Array]:
+        r"""
+        Computes the degree-m component of the graded tensor-concatenation product
+        or Cauchy convolution product in the truncated free tensor algebra.
+        $$
+        Z^{(m)} \;=\;\sum_{p+q=m} X^{(p)} \otimes Y^{(q)}
+        $$
+        This is the degree-m truncation of the full (Cauchy) product
+        $$
+        X \cdot Y = \sum_{p,q\ge0} X^{(p)} \otimes Y^{(q)}.
+        $$
+        """
+
+        if len(a_levels) == 0 or len(b_levels) == 0:
+            return []
+
+        if a_levels[0].shape != b_levels[0].shape:
+            raise ValueError(
+                f"a_levels and b_levels must have the same shape, got "
+                f"{a_levels[0].shape} and {b_levels[0].shape}"
+            )
+
+        depth = len(a_levels)
+        base = a_levels[0]
+        n_features = base.shape[-1]
+        out = [jnp.zeros((n_features,) * (k + 1)) for k in range(depth)]
+        # order-1 term is zero as there is no way to split $$1 = (p+1)+(q+1)$$ with $$p,q ≥ 0$$
+        for i in range(1, depth):  # i is the index for out, e.g., out[i] is order i+1
+            # we want $$Z^{(i+1)} = \sum_{(j+1)+(k+1)=i+1} X^{(j+1)}⊗Y^{(k+1)}$$
+            # i.e. we want to sum over all ways to split $$i+1 = (j+1)+(k+1)$$ with $$j,k ≥ 0$$
+            acc = jnp.zeros_like(out[i])
+            for j in range(i):
+                if j < len(a_levels) and (i - 1 - j) < len(b_levels):  # Ensure terms exist
+                    k = i - 1 - j
+                    term = tensor_product(a_levels[j], b_levels[k])
+                    acc = acc + term  # $$X^{(j+1)}⊗Y^{(k+1)}$$
+            out[i] = acc
+        return out
+
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncations must match for product.")
-        depth = len(a_levels)
         # Work in unflattened tensor shapes for the convolution; then re-flatten
         a_unflat = self._unflatten_levels(a_levels)
         b_unflat = self._unflatten_levels(b_levels)
-        cross_unflat = cauchy_convolution(a_unflat, b_unflat, depth)
+        cross_unflat = self._cauchy_convolution(a_unflat, b_unflat)
         out_unflat = [a + b + c for a, b, c in zip(a_unflat, b_unflat, cross_unflat)]
         return self._flatten_levels(out_unflat)
 
@@ -171,6 +211,9 @@ class ShuffleHopfAlgebra(HopfAlgebra):
 
     @override
     def coproduct(self, levels: list[jax.Array]) -> list[list[jax.Array]]:
+        """
+        The deconcatenation coproduct splits each level into pairs of levels.
+        """
         depth = len(levels)
         result: list[list[jax.Array]] = []
         for n in range(1, depth + 1):
