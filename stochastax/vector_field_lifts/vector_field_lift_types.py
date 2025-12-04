@@ -13,10 +13,9 @@
 """
 
 import jax
-from typing import NewType, Protocol, Callable, TYPE_CHECKING
+from typing import NewType, Protocol, Callable
 
-if TYPE_CHECKING:
-    from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra
 
 # Elementary differentials for Butcher/Lie-Butcher are kept as a single stacked array
 # because series formation code expects a flat concatenation contract.
