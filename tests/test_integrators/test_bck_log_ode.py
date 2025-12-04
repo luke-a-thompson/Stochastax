@@ -2,20 +2,16 @@ import jax
 import jax.numpy as jnp
 import pytest
 from jax.scipy.linalg import expm as jexpm
-from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.bck_lift import form_bck_lift
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
 
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    benchmark_wrapper,
     build_block_initial_state,
     build_bck_log_ode_inputs,
     build_block_rotation_generators,
-    build_deterministic_increments,
 )
 
 
@@ -36,58 +32,6 @@ def test_bck_log_ode_euclidean(
     expected = jexpm(delta * combined_generator) @ y0
     expected = expected / jnp.linalg.norm(y0)
     assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
-
-
-BCK_BENCH_CASES: list = [
-    pytest.param(1, 1, 12, id="depth-1-dim-1-step-12"),
-    pytest.param(1, 8, 12, id="depth-1-dim-8-step-12"),
-    pytest.param(1, 24, 12, id="depth-1-dim-24-step-12"),
-    pytest.param(2, 1, 12, id="depth-2-dim-1-step-12"),
-    pytest.param(2, 8, 12, id="depth-2-dim-8-step-12"),
-    pytest.param(2, 24, 12, id="depth-2-dim-24-step-12"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_bck_stepwise")
-@pytest.mark.parametrize(
-    "depth,dim,steps",
-    BCK_BENCH_CASES,
-)
-def test_bck_log_ode_benchmark_stepwise(
-    benchmark: BenchmarkFixture,
-    depth: int,
-    dim: int,
-    steps: int,
-) -> None:
-    """Benchmark BCK integration by stepping through deterministic increments."""
-    hopf = GLHopfAlgebra.build(dim, depth)
-    generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
-    y0 = build_block_initial_state(dim)
-    bck_brackets = form_bck_lift(vector_fields, y0, hopf)
-    increments = build_deterministic_increments(dim, steps, seed=depth + dim, scale=0.04)
-
-    @jax.jit
-    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
-        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
-            seg_path = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            cov = jnp.zeros((1, dim, dim), dtype=inc.dtype)
-            signature = compute_nonplanar_branched_signature(
-                path=seg_path,
-                order_m=depth,
-                hopf=hopf,
-                mode="full",
-                cov_increments=cov,
-            )
-            logsig = signature.log()
-            y_next = log_ode(bck_brackets, logsig, carry)
-            return y_next, None
-
-        y_final, _ = jax.lax.scan(step, y_init, path_increments)
-        return y_final
-
-    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
-    assert result.shape == y0.shape
 
 
 def test_form_bck_lift_jittable() -> None:

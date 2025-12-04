@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 import pytest
 from jax.scipy.linalg import expm as jexpm
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
@@ -15,8 +14,6 @@ from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
     _project_to_tangent,
-    benchmark_wrapper,
-    build_deterministic_increments,
     build_block_rotation_generators,
     build_block_initial_state,
     build_two_point_path,
@@ -214,49 +211,6 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     cov_xy = (centered.T @ centered) / float(M_small)
     target_cov = T_small * jnp.eye(2, dtype=jnp.float32)
     assert jnp.allclose(cov_xy, target_cov, rtol=0.2, atol=0.03)
-
-
-MKW_BENCH_CASES: list = [
-    pytest.param(1, 12, id="depth-1-dim-3-step-12"),
-    pytest.param(2, 12, id="depth-2-dim-3-step-12"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_mkw_stepwise")
-@pytest.mark.parametrize("depth,steps", MKW_BENCH_CASES)
-def test_mkw_log_ode_benchmark_manifold_stepwise(
-    benchmark: BenchmarkFixture, depth: int, steps: int
-) -> None:
-    """Benchmark MKW manifold integration by stepping through increments."""
-    A = _so3_generators()
-    dim = A.shape[0]
-    hopf = MKWHopfAlgebra.build(dim, depth)
-    vector_fields = _linear_vector_fields(A)
-    y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, _project_to_tangent)
-    increments = build_deterministic_increments(dim, steps, seed=depth + steps, scale=0.03)
-
-    @jax.jit
-    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
-        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
-            seg_path = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            cov = jnp.zeros((1, dim, dim), dtype=inc.dtype)
-            signature = compute_planar_branched_signature(
-                path=seg_path,
-                order_m=depth,
-                hopf=hopf,
-                mode="full",
-                cov_increments=cov,
-            )
-            logsig = signature.log()
-            y_next = log_ode(mkw_brackets, logsig, carry)
-            return y_next, None
-
-        y_final, _ = jax.lax.scan(step, y_init, path_increments)
-        return y_final
-
-    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
-    assert result.shape == y0.shape
 
 
 def test_form_mkw_lift_jittable() -> None:

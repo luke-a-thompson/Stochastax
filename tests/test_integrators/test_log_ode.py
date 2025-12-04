@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 from typing import Callable
 from jax.scipy.linalg import expm as jexpm
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.integrators.log_ode import log_ode
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
@@ -19,11 +18,8 @@ import jax.random as jrandom
 from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    benchmark_wrapper,
     build_standard_log_ode_inputs,
-    build_standard_manifold_case,
     build_block_rotation_generators,
-    build_deterministic_increments,
 )
 
 
@@ -286,84 +282,3 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
         y_win = log_ode(bracket_basis, log_sig_seg, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
-
-
-LOG_ODE_STANDARD_BENCH_CASES: list = [
-    pytest.param(1, 1, 12, id="depth-1-dim-1-step-12"),
-    pytest.param(1, 8, 12, id="depth-1-dim-8-step-12"),
-    pytest.param(1, 24, 12, id="depth-1-dim-24-step-12"),
-    pytest.param(2, 1, 12, id="depth-2-dim-1-step-12"),
-    pytest.param(2, 8, 12, id="depth-2-dim-8-step-12"),
-    pytest.param(2, 24, 12, id="depth-2-dim-24-step-12"),
-    pytest.param(3, 1, 12, id="depth-3-dim-1-step-12"),
-    pytest.param(3, 8, 12, id="depth-3-dim-8-step-12"),
-    pytest.param(3, 24, 12, id="depth-3-dim-24-step-12"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_standard_stepwise")
-@pytest.mark.parametrize(
-    "depth,dim,steps",
-    LOG_ODE_STANDARD_BENCH_CASES,
-)
-def test_log_ode_benchmark_standard_stepwise(
-    benchmark: BenchmarkFixture,
-    depth: int,
-    dim: int,
-    steps: int,
-) -> None:
-    """Benchmark Euclidean log-ODE by stepping through deterministic increments."""
-    # Reuse the standard Euclidean brackets/initial state; replace the control with a
-    # multi-step deterministic path.
-    brackets, _, y0 = build_standard_log_ode_inputs(depth, dim, delta=0.3)
-    increments = build_deterministic_increments(dim, steps, seed=0, scale=0.05)
-    local_hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
-
-    @jax.jit
-    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
-        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
-            seg = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            primitive = compute_log_signature(seg, depth, local_hopf, "Lyndon words", mode="full")
-            y_next = log_ode(brackets, primitive, carry)
-            return y_next, None
-
-        y_final, _ = jax.lax.scan(step, y_init, path_increments)
-        return y_final
-
-    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
-    assert result.shape == y0.shape
-
-
-LOG_ODE_MANIFOLD_BENCH_CASES: list = [
-    pytest.param(1, 12, id="depth-1-dim-3-step-12"),
-    pytest.param(2, 12, id="depth-2-dim-3-step-12"),
-    pytest.param(3, 12, id="depth-3-dim-3-step-12"),
-]
-
-
-@pytest.mark.benchmark(group="log_ode_manifold_stepwise")
-@pytest.mark.parametrize(
-    "depth,steps",
-    LOG_ODE_MANIFOLD_BENCH_CASES,
-)
-def test_log_ode_benchmark_manifold_stepwise(
-    benchmark: BenchmarkFixture, depth: int, steps: int
-) -> None:
-    """Benchmark manifold integration by stepping through increments."""
-    bracket_basis, increments, y0 = build_standard_manifold_case(depth, steps)
-    dim: int = increments.shape[1]
-    local_hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
-
-    @jax.jit
-    def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
-        def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
-            seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            primitive = compute_log_signature(seg_W, depth, local_hopf, "Lyndon words", mode="full")
-            y_next = log_ode(bracket_basis, primitive, carry)
-            return y_next, None
-
-        y_final, _ = jax.lax.scan(step, y_init, path_increments)
-        return y_final
-
-    result = benchmark_wrapper(benchmark, integrate_path, increments, y0)
-    assert result.shape == y0.shape

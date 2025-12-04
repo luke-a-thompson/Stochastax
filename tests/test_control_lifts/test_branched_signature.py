@@ -4,6 +4,46 @@ import pytest
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
 from stochastax.controls.drivers import bm_driver
+from tests.conftest import generate_brownian_path
+
+
+@pytest.mark.parametrize("dim", [1, 8])
+@pytest.mark.parametrize("depth", [1, 2])
+def test_bck_signature_shape_full(dim: int, depth: int) -> None:
+    """Branched Itô signature (full mode) has dimension matching GLHopfAlgebra basis sizes."""
+    num_steps = 10
+    key = jax.random.PRNGKey(7)
+    path = generate_brownian_path(key, dim, num_steps)
+    hopf = GLHopfAlgebra.build(dim, depth)
+    sig = compute_nonplanar_branched_signature(
+        path=path,
+        order_m=depth,
+        hopf=hopf,
+        mode="full",
+    )
+    flattened = sig.flatten()
+    expected_dim = sum(hopf.basis_size(level) for level in range(depth))
+    assert flattened.shape == (expected_dim,)
+
+
+@pytest.mark.parametrize("dim", [1, 8])
+@pytest.mark.parametrize("depth", [1, 2])
+def test_bck_signature_shape_stream(dim: int, depth: int) -> None:
+    """Branched Itô signature (stream mode) has per-step dimension matching GLHopfAlgebra."""
+    num_steps = 10
+    key = jax.random.PRNGKey(11)
+    path = generate_brownian_path(key, dim, num_steps)
+    hopf = GLHopfAlgebra.build(dim, depth)
+    sigs = compute_nonplanar_branched_signature(
+        path=path,
+        order_m=depth,
+        hopf=hopf,
+        mode="stream",
+    )
+    assert len(sigs) == num_steps
+    expected_dim = sum(hopf.basis_size(level) for level in range(depth))
+    stacked = jnp.stack([sig.flatten() for sig in sigs])
+    assert stacked.shape == (num_steps, expected_dim)
 
 
 @pytest.mark.parametrize("depth", [1, 2])

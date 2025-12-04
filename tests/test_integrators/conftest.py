@@ -19,7 +19,7 @@ from stochastax.vector_field_lifts.bck_lift import form_bck_lift
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
-
+from typing import Callable
 from tests.conftest import _so3_generators
 
 
@@ -58,7 +58,7 @@ def sphere_initial_state() -> jax.Array:
     return jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
 
-def benchmark_wrapper(benchmark: BenchmarkFixture, func, *args, **kwargs) -> jax.Array:
+def benchmark_wrapper(benchmark: BenchmarkFixture, func: Callable, *args, **kwargs) -> jax.Array:
     """Wrapper for JAX benchmark that ensures device synchronization."""
     warmed = jax.block_until_ready(func(*args, **kwargs))
 
