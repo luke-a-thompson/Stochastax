@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 from collections import defaultdict
-from typing import List, Tuple, Dict
 
 
 def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
@@ -68,27 +68,28 @@ def build_lyndon_dependency_tables(
             - suffix_indices[level]: suffix indices.
     """
 
-    tuple_levels: List[List[Tuple[int, ...]]] = []
-    index_maps: List[Dict[Tuple[int, ...], int]] = []
+    tuple_levels: list[list[tuple[int, ...]]] = []
+    index_maps: list[dict[tuple[int, ...], int]] = []
     for words in words_by_len:
         if words.size == 0:
             tuple_levels.append([])
             index_maps.append({})
             continue
-        tuples_level: List[Tuple[int, ...]] = []
-        index_map: Dict[Tuple[int, ...], int] = {}
-        for idx in range(words.shape[0]):
-            word_tuple = tuple(int(v) for v in words[idx].tolist())
+        words_host = np.asarray(words, dtype=np.int32)
+        tuples_level: list[tuple[int, ...]] = []
+        index_map: dict[tuple[int, ...], int] = {}
+        for idx, row in enumerate(words_host):
+            word_tuple = tuple(int(v) for v in row)
             tuples_level.append(word_tuple)
             index_map[word_tuple] = idx
         tuple_levels.append(tuples_level)
         index_maps.append(index_map)
 
-    splits: List[jax.Array] = []
-    prefix_levels: List[jax.Array] = []
-    prefix_indices: List[jax.Array] = []
-    suffix_levels: List[jax.Array] = []
-    suffix_indices: List[jax.Array] = []
+    splits: list[jax.Array] = []
+    prefix_levels: list[jax.Array] = []
+    prefix_indices: list[jax.Array] = []
+    suffix_levels: list[jax.Array] = []
+    suffix_indices: list[jax.Array] = []
 
     for _, level_words in enumerate(tuple_levels):
         if not level_words:
@@ -99,11 +100,11 @@ def build_lyndon_dependency_tables(
             suffix_indices.append(jnp.zeros((0,), dtype=jnp.int32))
             continue
 
-        level_splits: List[int] = []
-        level_prefix_levels: List[int] = []
-        level_prefix_indices: List[int] = []
-        level_suffix_levels: List[int] = []
-        level_suffix_indices: List[int] = []
+        level_splits: list[int] = []
+        level_prefix_levels: list[int] = []
+        level_prefix_indices: list[int] = []
+        level_suffix_levels: list[int] = []
+        level_suffix_indices: list[int] = []
 
         for word in level_words:
             word_len = len(word)

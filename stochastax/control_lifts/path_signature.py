@@ -9,6 +9,7 @@ from stochastax.hopf_algebras.elements import GroupElement
 
 
 def _compute_incremental_levels(path_increments: jax.Array, depth: int) -> list[jax.Array]:
+    """The core of signature computation from KerasSig."""
     depth_1_stream = jnp.cumsum(path_increments, axis=0)
     incremental_signatures: list[jax.Array] = [depth_1_stream]
 
