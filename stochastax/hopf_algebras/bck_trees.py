@@ -7,7 +7,7 @@ https://combinatorialpress.com/jcmcc-articles/volume-076/an-application-of-level
 """
 
 import jax.numpy as jnp
-from stochastax.hopf_algebras.hopf_algebra_types import Forest, BCKForest
+from stochastax.hopf_algebras.forest_types import Forest, BCKForest
 
 
 def _levelseq_to_parent(levels: list[int]) -> jnp.ndarray:

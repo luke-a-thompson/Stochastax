@@ -11,8 +11,8 @@ from stochastax.control_lifts.branched_signature_ito import (
     compute_planar_branched_signature,
 )
 from stochastax.control_lifts.log_signature import compute_log_signature
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 from stochastax.control_lifts.signature_types import LogSignature
-from stochastax.hopf_algebras import enumerate_bck_trees, enumerate_mkw_trees
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra, MKWHopfAlgebra
 from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
@@ -118,7 +118,8 @@ def build_standard_log_ode_inputs(
     words = enumerate_lyndon_basis(depth, dim)
     brackets = form_lyndon_brackets_from_words(generators, words)
     path = build_two_point_path(delta, dim)
-    primitive = compute_log_signature(path, depth, "Lyndon words", mode="full")
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
+    primitive = compute_log_signature(path, depth, hopf, "Lyndon words", mode="full")
     y0 = build_block_initial_state(dim)
     return brackets, primitive, y0
 
@@ -140,8 +141,7 @@ def build_bck_log_ode_inputs(
     depth: int, dim: int, delta: float = 0.35, cov_scale: float = 0.0
 ) -> tuple[list, object, jax.Array]:
     """Assemble BCK brackets and non-planar branched log-signature."""
-    forests = enumerate_bck_trees(depth)
-    hopf = GLHopfAlgebra.build(dim, forests)
+    hopf = GLHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
@@ -167,8 +167,7 @@ def build_mkw_log_ode_inputs(
     """Assemble MKW brackets and planar branched log-signature on S^2."""
     A = _so3_generators()
     dim = A.shape[0]
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
     vector_fields = _linear_vector_fields(A)
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
     brackets = form_mkw_brackets(vector_fields, y0, hopf, _project_to_tangent)

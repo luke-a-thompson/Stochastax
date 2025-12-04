@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.hopf_algebras import enumerate_bck_trees
 from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
 from tests.test_integrators.conftest import (
@@ -36,8 +35,7 @@ def test_bck_lift_benchmark_linear_block_rotation(
     vector_fields = _linear_vector_fields(generators)
     base_point = jnp.linspace(0.1, 0.2, num=n_state, dtype=jnp.float32)
 
-    forests = enumerate_bck_trees(depth)
-    hopf = GLHopfAlgebra.build(dim, forests)
+    hopf = GLHopfAlgebra.build(dim, depth)
 
     compiled = jax.jit(lambda y: form_bck_brackets(vector_fields, y, hopf))
     brackets = benchmark_wrapper(benchmark, compiled, base_point)

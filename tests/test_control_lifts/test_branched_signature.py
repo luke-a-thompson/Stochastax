@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 import pytest
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
-from stochastax.hopf_algebras import enumerate_bck_trees
 from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 from stochastax.controls.drivers import bm_driver
 
@@ -15,8 +14,7 @@ def test_bck_signature_quadratic_variation(depth: int, dim: int) -> None:
     at the signature level. Degree-2 coordinates vanish when cov=0 and are non-zero when
     cov=dt*I at the chain-of-length-2 indices.
     """
-    forests = enumerate_bck_trees(depth)
-    hopf = GLHopfAlgebra.build(dim, forests)
+    hopf = GLHopfAlgebra.build(dim, depth)
     timesteps = 200
     key = jax.random.PRNGKey(7)
     W = bm_driver(key, timesteps=timesteps, dim=dim)

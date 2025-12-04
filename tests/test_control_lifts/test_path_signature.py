@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import pytest
 from stochastax.control_lifts.path_signature import compute_path_signature
 from stochastax.analytics.signature_sizes import get_signature_dim
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 import signax
 import math
 
@@ -13,8 +14,9 @@ _test_key = jax.random.PRNGKey(42)
 @pytest.mark.parametrize("depth", [1, 2, 3])
 def test_signature_shape_full(scalar_path_fixture: jax.Array, depth: int) -> None:
     """Signature tensor dimension matches algebraic formula."""
-    channels = scalar_path_fixture.shape[1]
-    sig = compute_path_signature(scalar_path_fixture, depth=depth, mode="full").flatten()
+    channels = int(scalar_path_fixture.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
+    sig = compute_path_signature(scalar_path_fixture, depth=depth, hopf=hopf, mode="full").flatten()
     expected_dim = get_signature_dim(depth, channels)
     expected_shape = (expected_dim,)
     assert sig.shape == expected_shape, f"Expected shape {expected_shape}, got {sig.shape}"
@@ -25,7 +27,9 @@ def test_signature_shape_full(scalar_path_fixture: jax.Array, depth: int) -> Non
 def test_signature_shape_stream(scalar_path_fixture: jax.Array, depth: int) -> None:
     """Signature tensor dimension matches algebraic formula."""
     num_steps, channels = scalar_path_fixture.shape
-    sigs = compute_path_signature(scalar_path_fixture, depth=depth, mode="stream")
+    channels = int(channels)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
+    sigs = compute_path_signature(scalar_path_fixture, depth=depth, hopf=hopf, mode="stream")
 
     assert len(sigs) == num_steps - 1
     sig_array = jnp.stack([s.flatten() for s in sigs])
@@ -42,7 +46,9 @@ def test_signature_shape_stream(scalar_path_fixture: jax.Array, depth: int) -> N
 def test_signature_shape_incremental(scalar_path_fixture: jax.Array, depth: int) -> None:
     """Signature tensor dimension matches algebraic formula."""
     num_steps, channels = scalar_path_fixture.shape
-    sigs = compute_path_signature(scalar_path_fixture, depth=depth, mode="incremental")
+    channels = int(channels)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
+    sigs = compute_path_signature(scalar_path_fixture, depth=depth, hopf=hopf, mode="incremental")
     assert len(sigs) == num_steps - 1
     sig_array = jnp.stack([s.flatten() for s in sigs])
 
@@ -63,7 +69,9 @@ def test_linear_path_exactness(linear_path_fixture: jax.Array, depth: int) -> No
     path = linear_path_fixture
     delta_x = path[-1, 0] - path[0, 0]
 
-    sig = compute_path_signature(path, depth=depth, mode="full")
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
+    sig = compute_path_signature(path, depth=depth, hopf=hopf, mode="full")
     signature = sig.flatten()
 
     expected = jnp.array([delta_x**k / math.factorial(k) for k in range(1, depth + 1)])
@@ -78,7 +86,8 @@ def test_zero_path_vanishes() -> None:
     A constant path has zero increment, hence zero signature beyond level 0.
     """
     const_path = jnp.zeros((50, 2), dtype=jnp.float32)
-    sig = compute_path_signature(const_path, depth=4, mode="full")
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=2, depth=4)
+    sig = compute_path_signature(const_path, depth=4, hopf=hopf, mode="full")
     signature = sig.flatten()
     assert jnp.allclose(signature, 0.0)
 
@@ -106,9 +115,10 @@ def test_quadratic_path_signature(a: float, b: float) -> None:
     path_x = a * t
     path_y = b * t**2 / 2.0
     path = jnp.stack([path_x, path_y], axis=-1)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=2, depth=depth)
 
     # Compute the signature using the function
-    sig = compute_path_signature(path, depth=depth, mode="full")
+    sig = compute_path_signature(path, depth=depth, hopf=hopf, mode="full")
     signature = sig.flatten()
 
     # Analytical signature
@@ -137,7 +147,9 @@ def test_quicksig_signax_equivalence_full(scalar_path_fixture: jax.Array, depth:
     Test that the signature computed by QuickSig and Signax are equivalent.
     """
     path = scalar_path_fixture
-    quicksig_sig = compute_path_signature(path, depth=depth, mode="full")
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
+    quicksig_sig = compute_path_signature(path, depth=depth, hopf=hopf, mode="full")
     quicksig_sig = quicksig_sig.flatten()
     signax_sig = signax.signature(path, depth=depth, stream=False)
     assert jnp.allclose(quicksig_sig, signax_sig, atol=1e-5, rtol=1e-5)
@@ -150,7 +162,9 @@ def test_quicksig_signax_equivalence_stream(scalar_path_fixture: jax.Array, dept
     Test that the signature computed by QuickSig and Signax are equivalent.
     """
     path = scalar_path_fixture
-    quicksig_sig = compute_path_signature(path, depth=depth, mode="stream")
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
+    quicksig_sig = compute_path_signature(path, depth=depth, hopf=hopf, mode="stream")
     quicksig_sig = jnp.stack([s.flatten() for s in quicksig_sig])
     signax_sig = signax.signature(path, depth=depth, stream=True)
     assert jnp.allclose(quicksig_sig, signax_sig, atol=1e-5, rtol=1e-5)

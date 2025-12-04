@@ -209,8 +209,6 @@ def test_form_lyndon_brackets_gradients() -> None:
 
 def test_form_lyndon_brackets_consistency_with_duval() -> None:
     """Test that Lyndon brackets are consistent with duval_generator output."""
-    from stochastax.control_lifts.log_signature import enumerate_lyndon_basis
-
     dim, n = 2, 3
     A = jax.random.normal(jax.random.PRNGKey(29), (dim, n, n))
 
@@ -262,7 +260,7 @@ def test_lyndon_lift_benchmark_linear_block_rotation(
     n_state = int(generators.shape[-1])
     vector_fields = _linear_vector_fields(generators)
     base_point = jnp.linspace(0.1, 0.2, num=n_state, dtype=jnp.float32)
-    hopf = ShuffleHopfAlgebra.build(d=dim, max_degree=depth, cache_lyndon_basis=True)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
 
     compiled = jax.jit(lambda y: form_lyndon_lift(vector_fields, y, hopf))
     brackets = benchmark_wrapper(benchmark, compiled, base_point)

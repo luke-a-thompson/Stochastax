@@ -39,6 +39,7 @@ def _compute_incremental_levels(path_increments: jax.Array, depth: int) -> list[
 def compute_path_signature(
     path: jax.Array,
     depth: int,
+    hopf: ShuffleHopfAlgebra,
     mode: Literal["full"],
     index_start: int = 0,
 ) -> Signature: ...
@@ -48,15 +49,17 @@ def compute_path_signature(
 def compute_path_signature(
     path: jax.Array,
     depth: int,
+    hopf: ShuffleHopfAlgebra,
     mode: Literal["stream", "incremental"],
     index_start: int = 0,
 ) -> list[Signature]: ...
 
 
-@partial(jax.jit, static_argnames=["depth", "mode", "index_start"])
+@partial(jax.jit, static_argnames=["hopf", "depth", "mode", "index_start"])
 def compute_path_signature(
     path: jax.Array,
     depth: int,
+    hopf: ShuffleHopfAlgebra,
     mode: Literal["full", "stream", "incremental"],
     index_start: int = 0,
 ) -> Signature | list[Signature]:
@@ -69,8 +72,18 @@ def compute_path_signature(
         raise ValueError(
             f"QuickSig requires 2D arrays of shape [seq_len, n_features]. Got shape: {path.shape}. \n Consider using path.reshape(-1, 1)."
         )
-    seq_len, n_features = path.shape
-    hopf = ShuffleHopfAlgebra.build(d=n_features, max_degree=depth)
+    # Extract shape info before heavy computation
+    seq_len = int(path.shape[0])
+    n_features = int(path.shape[1])
+    if hopf.ambient_dimension != n_features:
+        raise ValueError(
+            f"Mismatch between hopf ambient dimension ({hopf.ambient_dimension}) and path features ({n_features})."
+        )
+    if hopf.max_degree != depth:
+        raise ValueError(
+            f"Mismatch between hopf.max_degree ({hopf.max_degree}) and depth argument ({depth})."
+        )
+
     if seq_len <= 1:
         if mode == "full":
             zero_terms = [

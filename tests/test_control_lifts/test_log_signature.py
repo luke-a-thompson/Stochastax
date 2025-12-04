@@ -7,6 +7,7 @@ from stochastax.analytics.signature_sizes import (
     get_log_signature_dim,
     get_signature_dim,
 )
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 import signax
 from tests.conftest import generate_scalar_path
 from tests.test_integrators.conftest import benchmark_wrapper
@@ -35,9 +36,12 @@ def test_log_signature_shape_full(
     """Log signature tensor dimension matches algebraic formula."""
     path = scalar_path_fixture
     channels = path.shape[1]
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
     log_sig = compute_log_signature(
         path,
         depth=depth,
+        hopf=hopf,
         log_signature_type=log_signature_type,
         mode="full",
     )
@@ -65,9 +69,12 @@ def test_log_signature_shape_stream(
     """Log signature tensor dimension matches algebraic formula."""
     path = scalar_path_fixture
     num_steps, channels = path.shape
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
     log_sigs = compute_log_signature(
         path,
         depth=depth,
+        hopf=hopf,
         log_signature_type=log_signature_type,
         mode="stream",
     )
@@ -99,9 +106,12 @@ def test_log_signature_shape_incremental(
     """Log signature tensor dimension matches algebraic formula."""
     path = scalar_path_fixture
     num_steps, channels = path.shape
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
     log_sigs = compute_log_signature(
         path,
         depth=depth,
+        hopf=hopf,
         log_signature_type=log_signature_type,
         mode="incremental",
     )
@@ -130,8 +140,10 @@ def test_quicksig_signax_equivalence_full(scalar_path_fixture: jax.Array, depth:
     Test that the log signature computed by QuickSig and Signax are equivalent.
     """
     path = scalar_path_fixture
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
     quicksig_log_sig = compute_log_signature(
-        path, depth=depth, log_signature_type="Lyndon words", mode="full"
+        path, depth=depth, hopf=hopf, log_signature_type="Lyndon words", mode="full"
     )
     quicksig_log_sig = jnp.concatenate([x.flatten() for x in quicksig_log_sig.coeffs])
 
@@ -148,8 +160,10 @@ def test_quicksig_signax_equivalence_stream(scalar_path_fixture: jax.Array, dept
     Test that the log signature computed by QuickSig and Signax are equivalent.
     """
     path = scalar_path_fixture
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
     quicksig_log_sigs = compute_log_signature(
-        path, depth=depth, log_signature_type="Lyndon words", mode="stream"
+        path, depth=depth, hopf=hopf, log_signature_type="Lyndon words", mode="stream"
     )
     quicksig_log_sigs = jnp.stack(
         [
@@ -167,11 +181,14 @@ def test_quicksig_signax_equivalence_stream(scalar_path_fixture: jax.Array, dept
 def test_log_signature_benchmark_quicksig(benchmark: BenchmarkFixture) -> None:
     """Benchmark QuickSig log-signature computation on a representative path."""
     path, depth = _log_signature_benchmark_inputs()
+    channels = int(path.shape[1])
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=channels, depth=depth)
 
     def _quicksig_full_logsignature(x: jax.Array) -> jax.Array:
         log_sig = compute_log_signature(
             x,
             depth,
+            hopf,
             "Lyndon words",
             mode="full",
         )

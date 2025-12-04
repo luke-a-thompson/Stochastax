@@ -6,12 +6,14 @@ import jax.numpy as jnp
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.elements import LieElement
 from stochastax.control_lifts.signature_types import Signature, LogSignature
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 
 
 @overload
 def compute_log_signature(
     path: jax.Array,
     depth: int,
+    hopf: ShuffleHopfAlgebra,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["full"],
 ) -> LogSignature: ...
@@ -21,26 +23,35 @@ def compute_log_signature(
 def compute_log_signature(
     path: jax.Array,
     depth: int,
+    hopf: ShuffleHopfAlgebra,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["stream", "incremental"],
 ) -> list[LogSignature]: ...
 
-
-@partial(jax.jit, static_argnames=["depth", "log_signature_type", "mode"])
+@partial(jax.jit, static_argnames=["hopf", "depth", "log_signature_type", "mode"])
 def compute_log_signature(
     path: jax.Array,
     depth: int,
+    hopf: ShuffleHopfAlgebra,
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["full", "stream", "incremental"],
 ) -> LogSignature | list[LogSignature]:
     n_features = path.shape[-1]
-    signature_result = compute_path_signature(path, depth, mode=mode)
+    if hopf.ambient_dimension != n_features:
+        raise ValueError(
+            f"Mismatch between hopf ambient dimension ({hopf.ambient_dimension}) and path features ({n_features})."
+        )
+    if hopf.max_degree != depth:
+        raise ValueError(
+            f"Mismatch between hopf.max_degree ({hopf.max_degree}) and depth argument ({depth})."
+        )
+    signature_result = compute_path_signature(path, depth, hopf, mode=mode)
 
     def _group_to_lie(group_el: Signature) -> LogSignature:
         lie_el = group_el.log()
         if log_signature_type == "Tensor words":
             return lie_el
-        elif log_signature_type == "Lyndon words":
+        if log_signature_type == "Lyndon words":
             basis = enumerate_lyndon_basis(depth, n_features)
             # reshape each level to expanded tensor shape, then compress
             expanded = [
@@ -50,13 +61,11 @@ def compute_log_signature(
             return LogSignature(
                 LieElement(hopf=lie_el.hopf, coeffs=compressed, interval=lie_el.interval)
             )
-        else:
-            raise ValueError(f"Invalid log signature type: {log_signature_type}")
+        raise ValueError(f"Invalid log signature type: {log_signature_type}")
 
     if isinstance(signature_result, list):
         return [LogSignature(_group_to_lie(sig)) for sig in signature_result]
-    else:
-        return LogSignature(_group_to_lie(signature_result))
+    return LogSignature(_group_to_lie(signature_result))
 
 
 def index_select(input: jax.Array, indices: jax.Array) -> jax.Array:

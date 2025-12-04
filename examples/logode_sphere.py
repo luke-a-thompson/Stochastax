@@ -9,6 +9,7 @@ from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.controls.paths_types import Path
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
+from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
 from stochastax.integrators.log_ode import log_ode
 
@@ -72,13 +73,14 @@ def main() -> None:
     A = _so3_generators()  # [3,3,3]
     words = enumerate_lyndon_basis(depth, dim)
     lyndon_brackets = form_lyndon_brackets_from_words(A, words)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
 
     # Integrate the Log-ODE window-by-window on the sphere
     state = jnp.array([0.0, 0.0, 1.0])
     traj: list[jax.Array] = [state]
     for w in windows:
         logsig = compute_log_signature(
-            w.path, depth=depth, log_signature_type="Lyndon words", mode="full"
+            w.path, depth=depth, hopf=hopf, log_signature_type="Lyndon words", mode="full"
         )
         state = log_ode(lyndon_brackets, logsig, state)
         traj.append(state)

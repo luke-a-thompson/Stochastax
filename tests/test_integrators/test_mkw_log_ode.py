@@ -9,7 +9,6 @@ from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
-from stochastax.hopf_algebras import enumerate_mkw_trees
 from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
 
 from tests.conftest import _so3_generators
@@ -17,7 +16,6 @@ from tests.test_integrators.conftest import (
     _linear_vector_fields,
     _project_to_tangent,
     benchmark_wrapper,
-    build_mkw_log_ode_inputs,
     build_deterministic_increments,
     build_block_rotation_generators,
     build_block_initial_state,
@@ -30,8 +28,7 @@ from tests.test_integrators.conftest import (
 def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim: int) -> None:
     """Planar branched log-ODE matches matrix exponential for linear Euclidean systems."""
     delta = 0.25
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
 
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
@@ -65,8 +62,7 @@ def test_mkw_log_ode_euclidean(
     delta = -0.41
     A = rotation_matrix_2d[jnp.newaxis, ...]
 
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(1, forests)
+    hopf = MKWHopfAlgebra.build(1, depth)
     mkw_brackets = form_mkw_brackets(
         _linear_vector_fields(A),
         euclidean_initial_state,
@@ -99,8 +95,7 @@ def test_mkw_signature_quadratic_variation(depth: int, dim: int) -> None:
     at the signature level. Degree-2 coordinates vanish when cov=0 and are non-zero when
     cov=dt*I at the chain-of-length-2 indices.
     """
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
     timesteps = 200
     key = jax.random.PRNGKey(9)
     W = bm_driver(key, timesteps=timesteps, dim=dim)
@@ -145,8 +140,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     y0 = sphere_initial_state
     dim = 3
 
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
     mkw_brackets = form_mkw_brackets(V, y0, hopf, _project_to_tangent)
 
     key = jax.random.PRNGKey(4)
@@ -236,8 +230,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
     """Benchmark MKW manifold integration by stepping through increments."""
     A = _so3_generators()
     dim = A.shape[0]
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
     vector_fields = _linear_vector_fields(A)
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
     mkw_brackets = form_mkw_brackets(vector_fields, y0, hopf, _project_to_tangent)
@@ -269,8 +262,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
 def test_form_mkw_brackets_jittable() -> None:
     depth = 2
     dim = 2
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)

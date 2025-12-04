@@ -4,7 +4,7 @@ from jax import lax
 import pytest
 from typing import Callable
 
-from stochastax.hopf_algebras.hopf_algebra_types import Forest
+from stochastax.hopf_algebras.forest_types import Forest
 
 _test_key = jax.random.PRNGKey(42)
 

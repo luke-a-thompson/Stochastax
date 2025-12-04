@@ -7,7 +7,6 @@ from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
-from stochastax.hopf_algebras import enumerate_bck_trees
 from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
 
 from tests.test_integrators.conftest import (
@@ -61,8 +60,7 @@ def test_bck_log_ode_benchmark_stepwise(
     steps: int,
 ) -> None:
     """Benchmark BCK integration by stepping through deterministic increments."""
-    forests = enumerate_bck_trees(depth)
-    hopf = GLHopfAlgebra.build(dim, forests)
+    hopf = GLHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
@@ -95,8 +93,7 @@ def test_bck_log_ode_benchmark_stepwise(
 def test_form_bck_brackets_jittable() -> None:
     depth = 2
     dim = 2
-    forests = enumerate_bck_trees(depth)
-    hopf = GLHopfAlgebra.build(dim, forests)
+    hopf = GLHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)

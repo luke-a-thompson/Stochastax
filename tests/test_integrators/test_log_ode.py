@@ -53,7 +53,8 @@ def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
     # Build a constant path (zero increments) and compute its log-signature
     zero_path = jnp.zeros((2, dim), dtype=jnp.float32)  # shape (N+1, dim)
-    primitive = compute_log_signature(zero_path, depth, "Lyndon words", mode="full")
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
+    primitive = compute_log_signature(zero_path, depth, hopf, "Lyndon words", mode="full")
     y_next: jax.Array = log_ode(bracket_basis, primitive, y0)
 
     # y0 already unit norm; expect exact equality within tolerance
@@ -97,6 +98,7 @@ def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
     words = enumerate_lyndon_basis(depth, dim)
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
+    local_hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
 
     # JIT step integrator across a path of increments at depth=1
     @jax.jit
@@ -105,7 +107,7 @@ def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
             y_curr = carry
             # depth=1 => coefficients list is [inc]
             seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+            primitive = compute_log_signature(seg_W, depth, local_hopf, "Lyndon words", mode="full")
             y_next = log_ode(bracket_basis, primitive, y_curr)
             return y_next, y_next
 
@@ -185,7 +187,7 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
 
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.1, -0.2, 0.3], dtype=jnp.float32)
-    hopf = ShuffleHopfAlgebra.build(d=dim, max_degree=depth, cache_lyndon_basis=True)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
     nonlinear = form_lyndon_lift(V, x0, hopf)
     words_direct = enumerate_lyndon_basis(depth, dim)
     linear = form_lyndon_brackets_from_words(A, words_direct)
@@ -198,7 +200,7 @@ def test_lyndon_lift_matches_linear_brackets() -> None:
 def test_form_lyndon_lift_jittable() -> None:
     dim = 2
     depth = 2
-    hopf = ShuffleHopfAlgebra.build(d=dim, max_degree=depth, cache_lyndon_basis=True)
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
     vector_fields = _simple_vector_fields(dim)
     base_point = jnp.linspace(0.1, 0.2, num=dim, dtype=jnp.float32)
 
@@ -223,7 +225,8 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance(
     bracket_basis: LyndonBrackets = form_lyndon_brackets_from_words(A, words)
 
     # Whole interval
-    log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=W.shape[1], depth=depth)
+    log_sig_full = compute_log_signature(W, depth, hopf, "Lyndon words", mode="full")
     y_full: jax.Array = log_ode(bracket_basis, log_sig_full, euclidean_initial_state)
 
     # Windowed
@@ -233,7 +236,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance(
     for s in range(0, N, window):
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
-        log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
+        log_sig_seg = compute_log_signature(seg, depth, hopf, "Lyndon words", mode="full")
         y_win = log_ode(bracket_basis, log_sig_seg, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
@@ -268,7 +271,8 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     y0 = y0 / jnp.linalg.norm(y0)
 
     # Whole interval
-    log_sig_full = compute_log_signature(W, depth, "Lyndon words", mode="full")
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=W.shape[1], depth=depth)
+    log_sig_full = compute_log_signature(W, depth, hopf, "Lyndon words", mode="full")
     y_full: jax.Array = log_ode(bracket_basis, log_sig_full, y0)
 
     # Windowed
@@ -278,7 +282,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     for s in range(0, N, window):
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
-        log_sig_seg = compute_log_signature(seg, depth, "Lyndon words", mode="full")
+        log_sig_seg = compute_log_signature(seg, depth, hopf, "Lyndon words", mode="full")
         y_win = log_ode(bracket_basis, log_sig_seg, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
@@ -313,12 +317,13 @@ def test_log_ode_benchmark_standard_stepwise(
     # multi-step deterministic path.
     brackets, _, y0 = build_standard_log_ode_inputs(depth, dim, delta=0.3)
     increments = build_deterministic_increments(dim, steps, seed=0, scale=0.05)
+    local_hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
 
     @jax.jit
     def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
         def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
             seg = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            primitive = compute_log_signature(seg, depth, "Lyndon words", mode="full")
+            primitive = compute_log_signature(seg, depth, local_hopf, "Lyndon words", mode="full")
             y_next = log_ode(brackets, primitive, carry)
             return y_next, None
 
@@ -347,12 +352,13 @@ def test_log_ode_benchmark_manifold_stepwise(
     """Benchmark manifold integration by stepping through increments."""
     bracket_basis, increments, y0 = build_standard_manifold_case(depth, steps)
     dim: int = increments.shape[1]
+    local_hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
 
     @jax.jit
     def integrate_path(path_increments: jax.Array, y_init: jax.Array) -> jax.Array:
         def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
             seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
-            primitive = compute_log_signature(seg_W, depth, "Lyndon words", mode="full")
+            primitive = compute_log_signature(seg_W, depth, local_hopf, "Lyndon words", mode="full")
             y_next = log_ode(bracket_basis, primitive, carry)
             return y_next, None
 

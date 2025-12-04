@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import NamedTuple, NewType, final, override, Optional, Sequence
+from typing import final, override, Sequence
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import numpy as np
@@ -7,6 +7,9 @@ import jax
 import jax.numpy as jnp
 from stochastax.tensor_ops import cauchy_convolution
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis, build_lyndon_dependency_tables
+from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
+from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from stochastax.hopf_algebras.forest_types import Forest, MKWForest, BCKForest
 
 
 class HopfAlgebra(ABC):
@@ -61,7 +64,7 @@ class HopfAlgebra(ABC):
         return f"{self.__class__.__name__}"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class ShuffleHopfAlgebra(HopfAlgebra):
     """Shuffle/Tensor Hopf algebra used for path signatures.
 
@@ -83,33 +86,31 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     @classmethod
     def build(
         cls,
-        d: int,
-        max_degree: int,
-        cache_lyndon_basis: bool = False,
-    ) -> "ShuffleHopfAlgebra":
+        ambient_dim: int,
+        depth: int,
+    ) -> ShuffleHopfAlgebra:
         """Construct a shuffle Hopf algebra with cached per-degree metadata."""
-        if max_degree <= 0:
-            raise ValueError(f"max_degree must be >= 1, got {max_degree}.")
-        shape_counts = [int(d ** (level + 1)) for level in range(max_degree)]
+        if depth <= 0:
+            raise ValueError(f"max_degree must be >= 1, got {depth}.")
+        shape_counts = [int(ambient_dim ** (level + 1)) for level in range(depth)]
         lyndon_tuple: tuple[jax.Array, ...] = tuple()
         split_tuple: tuple[jax.Array, ...] = tuple()
         prefix_level_tuple: tuple[jax.Array, ...] = tuple()
         prefix_index_tuple: tuple[jax.Array, ...] = tuple()
         suffix_level_tuple: tuple[jax.Array, ...] = tuple()
         suffix_index_tuple: tuple[jax.Array, ...] = tuple()
-        if cache_lyndon_basis:
-            lyndon_levels = enumerate_lyndon_basis(max_degree, d)
-            (
-                split_tuple,
-                prefix_level_tuple,
-                prefix_index_tuple,
-                suffix_level_tuple,
-                suffix_index_tuple,
-            ) = build_lyndon_dependency_tables(lyndon_levels)
-            lyndon_tuple = tuple(lyndon_levels)
+        lyndon_levels = enumerate_lyndon_basis(depth, ambient_dim)
+        (
+            split_tuple,
+            prefix_level_tuple,
+            prefix_index_tuple,
+            suffix_level_tuple,
+            suffix_index_tuple,
+        ) = build_lyndon_dependency_tables(lyndon_levels)
+        lyndon_tuple = tuple(lyndon_levels)
         return cls(
-            ambient_dimension=d,
-            max_degree=max_degree,
+            ambient_dimension=ambient_dim,
+            max_degree=depth,
             shape_count_by_degree=shape_counts,
             lyndon_basis_by_degree=lyndon_tuple,
             lyndon_split_by_degree=split_tuple,
@@ -205,48 +206,6 @@ class ShuffleHopfAlgebra(HopfAlgebra):
         return "Shuffle Hopf Algebra"
 
 
-class Forest(NamedTuple):
-    """A batch container for a forest of rooted trees.
-
-    Parameters
-    - parent: 2D array of shape ``(num_trees, n)`` with dtype ``int32``.
-      Each row encodes one rooted tree via its parent array in preorder:
-      ``parent[0] == -1`` and for ``i > 0`` we have ``0 <= parent[i] < i``.
-
-    Notes
-    - This container is compatible with JAX; the array can be a ``jax.Array``.
-    - The number of nodes ``n`` is the same for all trees in the forest.
-
-    Example
-    >>> import jax.numpy as jnp
-    >>> forest = Forest(parent=jnp.array([[-1, 0, 0]], dtype=jnp.int32))
-    >>> forest.parent.shape
-    (1, 3)
-    """
-
-    parent: jnp.ndarray
-
-    @property
-    def order(self) -> int:
-        """Order of the forest.
-
-        The order of a forest is the number of nodes in each tree of the forest.
-        """
-        return len(self.parent[0])
-
-    @property
-    def size(self) -> int:
-        """Size of the forest.
-
-        The size of a forest is the number of trees in the forest.
-        """
-        return self.parent.shape[0]
-
-
-MKWForest = NewType("MKWForest", Forest)
-BCKForest = NewType("BCKForest", Forest)
-
-
 def _build_children_from_parent(parent: list[int]) -> list[list[int]]:
     children: list[list[int]] = [[] for _ in range(len(parent))]
     for i in range(1, len(parent)):
@@ -287,9 +246,7 @@ def _build_children_eval_tables(
         num_shapes = int(parents.shape[0])
         n_nodes = int(parents.shape[1]) if parents.shape[1:] else 0
         if num_shapes == 0 or n_nodes == 0:
-            children_tables.append(
-                jnp.zeros((num_shapes, n_nodes, 0), dtype=jnp.int32)
-            )
+            children_tables.append(jnp.zeros((num_shapes, n_nodes, 0), dtype=jnp.int32))
             child_counts_tables.append(jnp.zeros((num_shapes, n_nodes), dtype=jnp.int32))
             eval_orders_tables.append(jnp.zeros((num_shapes, n_nodes), dtype=jnp.int32))
             continue
@@ -347,7 +304,9 @@ class GLHopfAlgebra(HopfAlgebra):
     ambient_dimension: int
     max_order: int = 0
     # Optional precomputed structures
-    degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
+    degree2_chain_indices: jax.Array | None = (
+        None  # (ambient_dim, ambient_dim) mapping for degree-2 chains
+    )
     shape_count_by_degree: list[int] = field(default_factory=list)
     forests_by_degree: tuple[BCKForest, ...] = field(default_factory=tuple)
     children_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
@@ -373,11 +332,12 @@ class GLHopfAlgebra(HopfAlgebra):
     @classmethod
     def build(
         cls,
-        d: int,
-        forests: list[BCKForest],
+        ambient_dim: int,
+        depth: int,
     ) -> GLHopfAlgebra:
         # Build degree-2 map if applicable (no dependency on TreeIndex to avoid cycles)
-        deg2_map: Optional[jax.Array] = None
+        forests = enumerate_bck_trees(depth)
+        deg2_map: jax.Array | None = None
         if len(forests) >= 2:
             parents = forests[1].parent  # degree 2 is index 1
             target = jnp.asarray([-1, 0], dtype=jnp.int32)
@@ -386,10 +346,10 @@ class GLHopfAlgebra(HopfAlgebra):
             shape_id = int(matches[0].item())
             if shape_id >= 0:
                 rows = []
-                for i in range(d):
+                for i in range(ambient_dim):
                     row = []
-                    for j in range(d):
-                        row.append(shape_id * (d**2) + i * d + j)
+                    for j in range(ambient_dim):
+                        row.append(shape_id * (ambient_dim**2) + i * ambient_dim + j)
                     rows.append(row)
                 deg2_map = jnp.asarray(rows, dtype=jnp.int32)
         shape_counts = [int(f.parent.shape[0]) for f in forests]
@@ -399,7 +359,7 @@ class GLHopfAlgebra(HopfAlgebra):
             eval_orders_tables,
         ) = _build_children_eval_tables(forests)
         return cls(
-            ambient_dimension=d,
+            ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
             max_order=len(forests),
             shape_count_by_degree=shape_counts,
@@ -486,7 +446,9 @@ class MKWHopfAlgebra(HopfAlgebra):
     ambient_dimension: int
     max_order: int = 0
     # Optional precomputed structures
-    degree2_chain_indices: Optional[jax.Array] = None  # (d, d) mapping for degree-2 chains
+    degree2_chain_indices: jax.Array | None = (
+        None  # (ambient_dim, ambient_dim) mapping for degree-2 chains
+    )
     shape_count_by_degree: list[int] = field(default_factory=list)
     forests_by_degree: tuple[MKWForest, ...] = field(default_factory=tuple)
     children_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
@@ -513,9 +475,10 @@ class MKWHopfAlgebra(HopfAlgebra):
     def build(
         cls,
         ambient_dim: int,
-        forests: list[MKWForest],
+        depth: int,
     ) -> MKWHopfAlgebra:
-        deg2_map: Optional[jax.Array] = None
+        forests = enumerate_mkw_trees(depth)
+        deg2_map: jax.Array | None = None
         if len(forests) >= 2:
             parents = forests[1].parent  # degree 2 is index 1
             target = jnp.asarray([-1, 0], dtype=jnp.int32)

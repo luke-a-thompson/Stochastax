@@ -248,9 +248,8 @@ def compute_nonplanar_branched_signature(
 if __name__ == "__main__":
     # Minimal example: compare standard tensor signature with branched Itô signature (m=2).
     import jax.numpy as jnp
-    from stochastax.hopf_algebras import enumerate_bck_trees, enumerate_mkw_trees
     from stochastax.control_lifts.path_signature import compute_path_signature
-    from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
+    from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra, ShuffleHopfAlgebra
 
     # Build a simple 2D path
     path = jnp.array(
@@ -266,14 +265,13 @@ if __name__ == "__main__":
     d = int(path.shape[1])
 
     # Standard (shuffle/tensor) signature
-    std = compute_path_signature(path, depth=depth, mode="full")
+    shuffle_hopf = ShuffleHopfAlgebra.build(ambient_dim=d, depth=depth)
+    std = compute_path_signature(path, depth=depth, hopf=shuffle_hopf, mode="full")
     std_levels = std.coeffs  # list[jax.Array], levels 1..depth
 
     # Branched Itô signature on BCK and MKW trees up to degree 2
-    bck_forests_list = enumerate_bck_trees(depth)  # list of BCKForest for degrees 1..depth
-    bck_hopf = GLHopfAlgebra.build(d, bck_forests_list)
-    mkw_forests_list = enumerate_mkw_trees(depth)  # list of MKWForest for degrees 1..depth
-    mkw_hopf = MKWHopfAlgebra.build(d, mkw_forests_list)
+    bck_hopf = GLHopfAlgebra.build(d, depth)
+    mkw_hopf = MKWHopfAlgebra.build(d, depth)
     increments = path[1:, :] - path[:-1, :]
     cov_zero = jnp.zeros((increments.shape[0], d, d), dtype=path.dtype)
     cov_dx_dx = jnp.einsum("td,te->tde", increments, increments)
@@ -307,7 +305,7 @@ if __name__ == "__main__":
     )
 
     # Show chain-of-length-2 matrix entries for the BCK hopf
-    bck_hopf = GLHopfAlgebra.build(d, bck_forests_list)
+    bck_hopf = GLHopfAlgebra.build(d, depth)
     if bck_hopf.degree2_chain_indices is not None:
         chain_zero = ito_zero_sig.coeffs[1][bck_hopf.degree2_chain_indices]
         chain_dx_dx = ito_dx_dx_sig.coeffs[1][bck_hopf.degree2_chain_indices]

@@ -6,7 +6,7 @@ and mapping each to a parent array in preorder.
 """
 
 import jax.numpy as jnp
-from stochastax.hopf_algebras.hopf_algebra_types import Forest, MKWForest
+from stochastax.hopf_algebras.forest_types import Forest, MKWForest
 
 
 def _dyck_to_parent_preorder(dyck: list[int]) -> jnp.ndarray:
