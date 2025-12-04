@@ -6,8 +6,8 @@ Vector field lifts for ordinary differential and stochastic calculus.
 ### Free (pre/post-)Lie Algebra Lifts:
 - form_lyndon_brackets_from_words: Lyndon brackets given precomputed Duval tables.
 - form_lyndon_lift: Nonlinear Lyndon lift built from vector fields.
-- form_bck_brackets: Form BCK brackets for a BCK forest.
-- form_mkw_brackets: Form MKW brackets for a MKW forest.
+- form_bck_lift: Form BCK lift for a BCK forest.
+- form_mkw_lift: Form MKW lift for a MKW forest.
 
 ### Butcher Series:
 - form_butcher_differentials: Form Butcher differentials for a BCK forest.
@@ -23,10 +23,10 @@ from .lie_lift import (
     form_lyndon_lift,
 )
 from .bck_lift import (
-    form_bck_brackets,
+    form_bck_lift,
 )
 from .mkw_lift import (
-    form_mkw_brackets,
+    form_mkw_lift,
 )
 
 __all__ = [
@@ -34,6 +34,6 @@ __all__ = [
     "form_lie_butcher_differentials",
     "form_lyndon_brackets_from_words",
     "form_lyndon_lift",
-    "form_bck_brackets",
-    "form_mkw_brackets",
+    "form_bck_lift",
+    "form_mkw_lift",
 ]

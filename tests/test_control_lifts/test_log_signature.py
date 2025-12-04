@@ -7,7 +7,7 @@ from stochastax.analytics.signature_sizes import (
     get_log_signature_dim,
     get_signature_dim,
 )
-from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 import signax
 from tests.conftest import generate_scalar_path
 from tests.test_integrators.conftest import benchmark_wrapper

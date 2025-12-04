@@ -3,12 +3,12 @@ import jax.numpy as jnp
 import numpy as np
 from typing import Callable, Optional
 
-from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import BCKBrackets
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
-def form_bck_brackets(
+def form_bck_lift(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
     hopf: GLHopfAlgebra,
@@ -107,8 +107,7 @@ def form_bck_brackets(
                         node_funcs[node_idx] = vector_fields[colour]
                         continue
                     child_ids = [
-                        int(children_indices[node_idx, slot])
-                        for slot in range(num_children)
+                        int(children_indices[node_idx, slot]) for slot in range(num_children)
                     ]
                     child_funcs: list[Callable[[jax.Array], jax.Array]] = []
                     for c_idx in child_ids:

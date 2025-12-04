@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import NamedTuple, NewType
 import jax.numpy as jnp
 
+
 class Forest(NamedTuple):
     """A batch container for a forest of rooted trees.
 

@@ -3,8 +3,8 @@ import jax.numpy as jnp
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
+from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
 from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
@@ -37,7 +37,7 @@ def test_mkw_lift_benchmark_so3_manifold(
     vector_fields = _linear_vector_fields(A)
     base_point = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
-    compiled = jax.jit(lambda y: form_mkw_brackets(vector_fields, y, hopf, _project_to_tangent))
+    compiled = jax.jit(lambda y: form_mkw_lift(vector_fields, y, hopf, _project_to_tangent))
     brackets = benchmark_wrapper(benchmark, compiled, base_point)
 
     # Keep this a real test with light sanity checks.

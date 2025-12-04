@@ -8,10 +8,10 @@ from typing import Callable
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.hopf_algebras import enumerate_mkw_trees
-from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
 
 
 def _so3_generators() -> jax.Array:
@@ -83,7 +83,7 @@ def main() -> None:
     A = _so3_generators()
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.0, 0.0, 1.0])
-    mkw_brackets = form_mkw_brackets(V, x0, hopf, _project_to_tangent)
+    mkw_brackets = form_mkw_lift(V, x0, hopf, _project_to_tangent)
 
     # Integrate Log-ODE window-by-window using branched Itô log signatures with known QV
     state = x0

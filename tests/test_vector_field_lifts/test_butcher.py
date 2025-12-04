@@ -7,7 +7,7 @@ from stochastax.vector_field_lifts.butcher import (
     form_butcher_differentials,
     form_lie_butcher_differentials,
 )
-from stochastax.hopf_algebras.hopf_algebra_types import MKWForest, BCKForest
+from stochastax.hopf_algebras.hopf_algebras import MKWForest, BCKForest
 from tests.conftest import (
     forest_from_parents,
     chain_parent,

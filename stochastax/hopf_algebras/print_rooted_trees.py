@@ -10,7 +10,7 @@ Conventions
 """
 
 import jax.numpy as jnp
-from stochastax.hopf_algebras.hopf_algebra_types import Forest
+from stochastax.hopf_algebras.hopf_algebras import Forest
 
 
 def _build_children(parent: list[int]) -> list[list[int]]:

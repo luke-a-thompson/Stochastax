@@ -134,4 +134,3 @@ def pathify(stream: jax.Array) -> Path:
         return Path(path=stream, interval=interval)
     else:
         raise ValueError(f"Stream must be a 2D or 3D array. Got shape {stream.shape}.")
-

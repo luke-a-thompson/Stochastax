@@ -3,8 +3,8 @@ import jax.numpy as jnp
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra
-from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
+from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
+from stochastax.vector_field_lifts.bck_lift import form_bck_lift
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
     benchmark_wrapper,
@@ -27,7 +27,7 @@ def test_bck_lift_benchmark_linear_block_rotation(
 ) -> None:
     """Benchmark BCK lift build for simple linear block-rotation vector fields.
 
-    This mirrors the Euclidean log-ODE helpers and isolates ``form_bck_brackets`` so
+    This mirrors the Euclidean log-ODE helpers and isolates ``form_bck_lift`` so
     changes to its implementation show up clearly in benchmark results.
     """
     generators = build_block_rotation_generators(dim)
@@ -37,9 +37,9 @@ def test_bck_lift_benchmark_linear_block_rotation(
 
     hopf = GLHopfAlgebra.build(dim, depth)
 
-    compiled = jax.jit(lambda y: form_bck_brackets(vector_fields, y, hopf))
-    brackets = benchmark_wrapper(benchmark, compiled, base_point)
+    compiled = jax.jit(lambda y: form_bck_lift(vector_fields, y, hopf))
+    lift = benchmark_wrapper(benchmark, compiled, base_point)
 
     # Keep this a real test with light sanity checks.
-    assert isinstance(brackets, list)
-    assert len(brackets) == depth
+    assert isinstance(lift, list)
+    assert len(lift) == depth

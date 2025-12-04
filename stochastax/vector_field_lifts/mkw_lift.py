@@ -3,12 +3,12 @@ import jax.numpy as jnp
 import numpy as np
 from typing import Callable, Optional
 
-from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import MKWBrackets
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
-def form_mkw_brackets(
+def form_mkw_lift(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
     hopf: MKWHopfAlgebra,
@@ -114,8 +114,7 @@ def form_mkw_brackets(
                         node_funcs[node_idx] = leaf_field
                         continue
                     child_ids = [
-                        int(children_indices[node_idx, slot])
-                        for slot in range(num_children)
+                        int(children_indices[node_idx, slot]) for slot in range(num_children)
                     ]
                     child_funcs: list[Callable[[jax.Array], jax.Array]] = []
                     for c_idx in child_ids:

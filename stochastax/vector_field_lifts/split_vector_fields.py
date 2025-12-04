@@ -13,8 +13,8 @@ def split_multi_vector_field(
 
     Useful when a single neural network produces all driver channels at once
     (e.g. shape ``[data_dim * hidden_dim]`` reshaped to ``[data_dim, hidden_dim]``),
-    but downstream lifts (``form_lyndon_lift``, ``form_bck_brackets``,
-    ``form_mkw_brackets``) expect a list of per-channel callables.
+    but downstream lifts (``form_lyndon_lift``, ``form_bck_lift``,
+    ``form_mkw_lift``) expect a list of per-channel callables.
     """
 
     def make_V(i: int) -> Callable[[jax.Array], jax.Array]:

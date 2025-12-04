@@ -5,7 +5,7 @@ from typing import Literal, Optional, overload, cast
 import jax
 import jax.numpy as jnp
 
-from stochastax.hopf_algebras.hopf_algebra_types import (
+from stochastax.hopf_algebras.hopf_algebras import (
     HopfAlgebra,
     GLHopfAlgebra,
     MKWHopfAlgebra,
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     # Minimal example: compare standard tensor signature with branched Itô signature (m=2).
     import jax.numpy as jnp
     from stochastax.control_lifts.path_signature import compute_path_signature
-    from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra, ShuffleHopfAlgebra
+    from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, ShuffleHopfAlgebra
 
     # Build a simple 2D path
     path = jnp.array(

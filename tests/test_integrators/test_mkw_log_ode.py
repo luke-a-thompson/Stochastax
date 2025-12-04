@@ -8,8 +8,8 @@ from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
-from stochastax.hopf_algebras.hopf_algebra_types import MKWHopfAlgebra
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
+from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 
 from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
@@ -33,7 +33,7 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
-    mkw_brackets = form_mkw_brackets(vector_fields, y0, hopf, lambda _, v: v)
+    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, lambda _, v: v)
 
     path = build_two_point_path(delta, dim)
     steps = path.shape[0] - 1
@@ -63,7 +63,7 @@ def test_mkw_log_ode_euclidean(
     A = rotation_matrix_2d[jnp.newaxis, ...]
 
     hopf = MKWHopfAlgebra.build(1, depth)
-    mkw_brackets = form_mkw_brackets(
+    mkw_brackets = form_mkw_lift(
         _linear_vector_fields(A),
         euclidean_initial_state,
         hopf,
@@ -141,7 +141,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     dim = 3
 
     hopf = MKWHopfAlgebra.build(dim, depth)
-    mkw_brackets = form_mkw_brackets(V, y0, hopf, _project_to_tangent)
+    mkw_brackets = form_mkw_lift(V, y0, hopf, _project_to_tangent)
 
     key = jax.random.PRNGKey(4)
     timesteps = 1000
@@ -233,7 +233,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
     hopf = MKWHopfAlgebra.build(dim, depth)
     vector_fields = _linear_vector_fields(A)
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    mkw_brackets = form_mkw_brackets(vector_fields, y0, hopf, _project_to_tangent)
+    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, _project_to_tangent)
     increments = build_deterministic_increments(dim, steps, seed=depth + steps, scale=0.03)
 
     @jax.jit
@@ -259,7 +259,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
     assert result.shape == y0.shape
 
 
-def test_form_mkw_brackets_jittable() -> None:
+def test_form_mkw_lift_jittable() -> None:
     depth = 2
     dim = 2
     hopf = MKWHopfAlgebra.build(dim, depth)
@@ -267,7 +267,7 @@ def test_form_mkw_brackets_jittable() -> None:
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
 
-    compiled = jax.jit(lambda bp: form_mkw_brackets(vector_fields, bp, hopf, lambda _, v: v))
+    compiled = jax.jit(lambda bp: form_mkw_lift(vector_fields, bp, hopf, lambda _, v: v))
     brackets = compiled(y0)
 
     assert len(brackets) == depth

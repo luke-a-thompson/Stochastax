@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import pytest
 from stochastax.control_lifts.path_signature import compute_path_signature
 from stochastax.analytics.signature_sizes import get_signature_dim
-from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 import signax
 import math
 

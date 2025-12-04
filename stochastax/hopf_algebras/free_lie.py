@@ -8,7 +8,6 @@ def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
     return a @ b - b @ a
 
 
-
 # @partial(jax.jit, static_argnames=["depth", "dim"])
 def enumerate_lyndon_basis(depth: int, dim: int) -> list[jax.Array]:
     """Duval's generator. Generates lists of words (integer sequences) for each level up to a specified depth.
@@ -83,7 +82,7 @@ def build_lyndon_dependency_tables(
     suffix_levels: List[jax.Array] = []
     suffix_indices: List[jax.Array] = []
 
-    for level_idx, level_words in enumerate(tuple_levels):
+    for _, level_words in enumerate(tuple_levels):
         if not level_words:
             splits.append(jnp.zeros((0,), dtype=jnp.int32))
             prefix_levels.append(jnp.zeros((0,), dtype=jnp.int32))
@@ -153,6 +152,7 @@ def build_lyndon_dependency_tables(
         tuple(suffix_levels),
         tuple(suffix_indices),
     )
+
 
 def find_split_points_vectorized(
     words: jax.Array,

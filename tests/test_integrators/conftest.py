@@ -11,13 +11,13 @@ from stochastax.control_lifts.branched_signature_ito import (
     compute_planar_branched_signature,
 )
 from stochastax.control_lifts.log_signature import compute_log_signature
-from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.control_lifts.signature_types import LogSignature
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
-from stochastax.hopf_algebras.hopf_algebra_types import GLHopfAlgebra, MKWHopfAlgebra
-from stochastax.vector_field_lifts.bck_lift import form_bck_brackets
+from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra
+from stochastax.vector_field_lifts.bck_lift import form_bck_lift
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_brackets
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 
 from tests.conftest import _so3_generators
@@ -157,7 +157,7 @@ def build_bck_log_ode_inputs(
         cov_increments=cov,
     )
     logsig = signature.log()
-    brackets = form_bck_brackets(vector_fields, y0, hopf)
+    brackets = form_bck_lift(vector_fields, y0, hopf)
     return brackets, logsig, y0
 
 
@@ -170,7 +170,7 @@ def build_mkw_log_ode_inputs(
     hopf = MKWHopfAlgebra.build(dim, depth)
     vector_fields = _linear_vector_fields(A)
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    brackets = form_mkw_brackets(vector_fields, y0, hopf, _project_to_tangent)
+    brackets = form_mkw_lift(vector_fields, y0, hopf, _project_to_tangent)
 
     increments = build_deterministic_increments(dim, steps, seed, scale=0.03)
     origin = jnp.zeros((1, dim), dtype=jnp.float32)

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.elements import LieElement
 from stochastax.control_lifts.signature_types import Signature, LogSignature
-from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 
 
 @overload
@@ -27,6 +27,7 @@ def compute_log_signature(
     log_signature_type: Literal["Tensor words", "Lyndon words"],
     mode: Literal["stream", "incremental"],
 ) -> list[LogSignature]: ...
+
 
 @partial(jax.jit, static_argnames=["hopf", "depth", "log_signature_type", "mode"])
 def compute_log_signature(

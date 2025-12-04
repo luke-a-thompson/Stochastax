@@ -1,9 +1,11 @@
 """Hopf algebra helpers for rooted tree families.
 
 Exports
-- ``enumerate_bck_trees``: Unordered rooted trees list (BCK) for degrees 1..N.
-- ``enumerate_mkw_trees``: Ordered (plane) rooted trees list (MKW) for degrees 1..N.
-- ``print_forest``: Render a forest of trees as Unicode Markdown.
+- ``ShuffleHopfAlgebra``: Shuffle/Tensor Hopf algebra used for path signatures.
+- ``GLHopfAlgebra``: General linear Hopf algebra used for BCK signatures.
+- ``MKWHopfAlgebra``: Munthe-Kaas-Wright Hopf algebra used for MKW signatures.
 """
 
-__all__ = []
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra, GLHopfAlgebra, MKWHopfAlgebra
+
+__all__ = ["ShuffleHopfAlgebra", "GLHopfAlgebra", "MKWHopfAlgebra"]

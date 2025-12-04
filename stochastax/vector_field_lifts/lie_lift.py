@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
-from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.hopf_algebras.free_lie import (
     find_split_points_vectorized,
     compute_lyndon_level_brackets,

@@ -9,7 +9,7 @@ from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.controls.paths_types import Path
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
-from stochastax.hopf_algebras.hopf_algebra_types import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
 from stochastax.integrators.log_ode import log_ode
 

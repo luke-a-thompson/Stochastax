@@ -17,5 +17,3 @@ def unrank_base_d(index: int, num_digits: int, base: int) -> list[int]:
         digits[k] = x % base
         x //= base
     return digits
-
-
