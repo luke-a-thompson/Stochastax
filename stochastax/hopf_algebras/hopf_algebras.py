@@ -17,6 +17,16 @@ class HopfAlgebra(ABC):
 
     ambient_dimension: int
 
+    @classmethod
+    @abstractmethod
+    def build(cls, ambient_dim: int, depth: int) -> HopfAlgebra:
+        """Construct a Hopf algebra instance with cached per-degree metadata.
+
+        Implementations must agree on the (ambient_dim, depth) signature so that
+        callers can be generic over concrete Hopf algebras.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def basis_size(self, level: int) -> int:
         """Number of basis elements at given level (degree = level + 1 for signatures).
@@ -84,6 +94,7 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     lyndon_suffix_index_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
 
     @classmethod
+    @override
     def build(
         cls,
         ambient_dim: int,
@@ -330,6 +341,7 @@ class GLHopfAlgebra(HopfAlgebra):
         return num_shapes * (self.ambient_dimension**n)
 
     @classmethod
+    @override
     def build(
         cls,
         ambient_dim: int,
@@ -472,6 +484,7 @@ class MKWHopfAlgebra(HopfAlgebra):
         return num_shapes * (self.ambient_dimension**n)
 
     @classmethod
+    @override
     def build(
         cls,
         ambient_dim: int,
