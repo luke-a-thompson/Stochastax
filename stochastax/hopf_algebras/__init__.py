@@ -6,6 +6,11 @@ Exports
 - ``MKWHopfAlgebra``: Munthe-Kaas-Wright Hopf algebra used for MKW signatures.
 """
 
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra, GLHopfAlgebra, MKWHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebras import (
+    HopfAlgebra,
+    ShuffleHopfAlgebra,
+    GLHopfAlgebra,
+    MKWHopfAlgebra,
+)
 
-__all__ = ["ShuffleHopfAlgebra", "GLHopfAlgebra", "MKWHopfAlgebra"]
+__all__ = ["HopfAlgebra", "ShuffleHopfAlgebra", "GLHopfAlgebra", "MKWHopfAlgebra"]
