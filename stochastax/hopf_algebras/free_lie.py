@@ -19,18 +19,26 @@ def enumerate_lyndon_basis(depth: int, dim: int) -> list[jax.Array]:
         higher_level_empty_words = [jnp.empty((0, i + 1), dtype=jnp.int32) for i in range(1, depth)]
         return first_level_word + higher_level_empty_words
 
-    list_of_words = defaultdict(list)
-    word = [-1]
+    list_of_words: dict[int, list[list[int]]] = defaultdict(list)
+    word: list[int] = [-1]
     while word:
         word[-1] += 1
         m = len(word)
-        list_of_words[m - 1].append(jnp.array(word))
+        list_of_words[m - 1].append(list(word))
         while len(word) < depth:
             word.append(word[-m])
         while word and word[-1] == dim - 1:
             word.pop()
 
-    return [jnp.stack(list_of_words[i]) for i in range(depth)]
+    result: list[jax.Array] = []
+    for level in range(depth):
+        words_level = list_of_words[level]
+        if not words_level:
+            result.append(jnp.empty((0, level + 1), dtype=jnp.int32))
+        else:
+            result.append(jnp.asarray(words_level, dtype=jnp.int32))
+
+    return result
 
 
 def build_lyndon_dependency_tables(
