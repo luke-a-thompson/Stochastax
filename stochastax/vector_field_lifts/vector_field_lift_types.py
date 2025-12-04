@@ -12,8 +12,11 @@
 - LieButcherDifferentials: The elementary differentials of a vector field evaluated as a MKW forest. Suitable for manifolds.
 """
 
-from typing import NewType
 import jax
+from typing import NewType, Protocol, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra
 
 # Elementary differentials for Butcher/Lie-Butcher are kept as a single stacked array
 # because series formation code expects a flat concatenation contract.
@@ -25,3 +28,15 @@ LieButcherDifferentials = NewType("LieButcherDifferentials", jax.Array)
 LyndonBrackets = NewType("LyndonBrackets", list[jax.Array])
 BCKBrackets = NewType("BCKBrackets", list[jax.Array])
 MKWBrackets = NewType("MKWBrackets", list[jax.Array])
+
+VectorFieldBrackets = LyndonBrackets | BCKBrackets | MKWBrackets
+
+
+class VectorFieldLift(Protocol):
+    def __call__(
+        self,
+        vector_fields: list[Callable[[jax.Array], jax.Array]],
+        base_point: jax.Array,
+        hopf: HopfAlgebra,
+        project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
+    ) -> VectorFieldBrackets: ...

@@ -21,7 +21,7 @@
 - Riemann-Liouville (Type II) fractional Brownian motion
 """
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
 __author__ = "Luke Thompson"
 __email__ = "luke.thompson@sydney.edu.au"
 __license__ = "MIT"

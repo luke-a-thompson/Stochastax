@@ -4,7 +4,7 @@ from stochastax.tensor_ops import restricted_tensor_exp, seq_tensor_product
 from typing import Literal, overload
 from functools import partial
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
-from stochastax.control_lifts.signature_types import Signature
+from stochastax.control_lifts.signature_types import PathSignature
 from stochastax.hopf_algebras.elements import GroupElement
 
 
@@ -43,7 +43,7 @@ def compute_path_signature(
     hopf: ShuffleHopfAlgebra,
     mode: Literal["full"],
     index_start: int = 0,
-) -> Signature: ...
+) -> PathSignature: ...
 
 
 @overload
@@ -53,7 +53,7 @@ def compute_path_signature(
     hopf: ShuffleHopfAlgebra,
     mode: Literal["stream", "incremental"],
     index_start: int = 0,
-) -> list[Signature]: ...
+) -> list[PathSignature]: ...
 
 
 @partial(jax.jit, static_argnames=["hopf", "depth", "mode", "index_start"])
@@ -63,7 +63,7 @@ def compute_path_signature(
     hopf: ShuffleHopfAlgebra,
     mode: Literal["full", "stream", "incremental"],
     index_start: int = 0,
-) -> Signature | list[Signature]:
+) -> PathSignature | list[PathSignature]:
     r"""Computes the truncated path signature
     $$\operatorname{Sig}_{0,T}(X)=\bigl(S^{(1)}_{0,T},\,S^{(2)}_{0,T},\ldots,S^{(m)}_{0,T}\bigr),\qquad m=\text{depth}.$$
     The constant term $$S^{(0)}_{0,T}=1$$ is omitted.
@@ -90,7 +90,7 @@ def compute_path_signature(
             zero_terms = [
                 jnp.zeros((n_features ** (i + 1),), dtype=path.dtype) for i in range(depth)
             ]
-            return Signature(
+            return PathSignature(
                 GroupElement(
                     hopf=hopf,
                     coeffs=zero_terms,
@@ -107,7 +107,7 @@ def compute_path_signature(
     match mode:
         case "incremental":
             return [
-                Signature(
+                PathSignature(
                     GroupElement(
                         hopf=hopf,
                         coeffs=[
@@ -122,7 +122,7 @@ def compute_path_signature(
         case "full":
             incremental_signatures = _compute_incremental_levels(path_increments, depth)
             final_levels = [jnp.ravel(c[-1]) for c in incremental_signatures]
-            return Signature(
+            return PathSignature(
                 GroupElement(
                     hopf=hopf,
                     coeffs=final_levels,
@@ -132,7 +132,7 @@ def compute_path_signature(
         case "stream":
             incremental_signatures = _compute_incremental_levels(path_increments, depth)
             return [
-                Signature(
+                PathSignature(
                     GroupElement(
                         hopf=hopf,
                         coeffs=[jnp.ravel(term[i, :]) for term in incremental_signatures],

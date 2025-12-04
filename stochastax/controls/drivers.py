@@ -73,9 +73,10 @@ def fractional_bm_driver(key: jax.Array, timesteps: int, dim: int, hurst: float)
     """
 
     def get_path(key: jax.Array, timesteps: int, hurst: float) -> jax.Array:
-        gamma = lambda k, H: 0.5 * (
-            jnp.abs(k - 1) ** (2 * H) - 2 * jnp.abs(k) ** (2 * H) + jnp.abs(k + 1) ** (2 * H)
-        )
+        def gamma(k: jax.Array, H: float) -> jax.Array:
+            return 0.5 * (
+                jnp.abs(k - 1) ** (2 * H) - 2 * jnp.abs(k) ** (2 * H) + jnp.abs(k + 1) ** (2 * H)
+            )
 
         k_vals = jnp.arange(0, timesteps)
         g = gamma(k_vals, hurst)
@@ -126,8 +127,8 @@ def riemann_liouville_driver(
     key: jax.Array,
     timesteps: int,
     hurst: float,
-    bm_path,
-):
+    bm_path: Path,
+) -> Path:
     """
     Hybrid scheme (kappa = 1) for the RL/type-II fBM driver used in rBergomi.
     """
@@ -150,14 +151,14 @@ def riemann_liouville_driver(
     i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)
     w = (Δ**α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)
 
-    def conv_full_1d(w, x):
+    def conv_full_1d(w: jax.Array, x: jax.Array) -> jax.Array:
         L = int(2 ** jnp.ceil(jnp.log2(w.shape[0] + x.shape[0] - 1)))
         wf = jnp.fft.rfft(jnp.pad(w, (0, L - w.shape[0])))
         xf = jnp.fft.rfft(jnp.pad(x, (0, L - x.shape[0])))
         y = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
         return y
 
-    def per_dim(x):
+    def per_dim(x: jax.Array) -> jax.Array:
         y = conv_full_1d(w, x[:-1])
         return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])
 

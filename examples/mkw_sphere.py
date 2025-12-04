@@ -7,7 +7,6 @@ from typing import Callable
 
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
-from stochastax.hopf_algebras import enumerate_mkw_trees
 from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
@@ -76,8 +75,7 @@ def main() -> None:
     dt = 1.0 / timesteps
 
     # MKW forests and Hopf algebra for branched signatures
-    forests = enumerate_mkw_trees(depth)
-    hopf = MKWHopfAlgebra.build(dim, forests)
+    hopf = MKWHopfAlgebra.build(dim, depth)
 
     # Vector-field brackets (MKW) using tangent projection
     A = _so3_generators()

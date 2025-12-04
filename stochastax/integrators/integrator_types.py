@@ -12,3 +12,5 @@ import jax
 ButcherSeries = NewType("ButcherSeries", jax.Array)
 LieSeries = NewType("LieSeries", jax.Array)
 LieButcherSeries = NewType("LieButcherSeries", jax.Array)
+
+Series = ButcherSeries | LieSeries | LieButcherSeries

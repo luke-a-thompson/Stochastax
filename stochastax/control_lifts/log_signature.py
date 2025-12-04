@@ -5,7 +5,7 @@ from typing import Literal, overload
 import jax.numpy as jnp
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.elements import LieElement
-from stochastax.control_lifts.signature_types import Signature, LogSignature
+from stochastax.control_lifts.signature_types import PathSignature, LogSignature
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 
 
@@ -48,7 +48,7 @@ def compute_log_signature(
         )
     signature_result = compute_path_signature(path, depth, hopf, mode=mode)
 
-    def _group_to_lie(group_el: Signature) -> LogSignature:
+    def _group_to_lie(group_el: PathSignature) -> LogSignature:
         lie_el = group_el.log()
         if log_signature_type == "Tensor words":
             return lie_el

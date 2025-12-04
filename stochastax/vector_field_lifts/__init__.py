@@ -28,6 +28,15 @@ from .bck_lift import (
 from .mkw_lift import (
     form_mkw_lift,
 )
+from .vector_field_lift_types import (
+    ButcherDifferentials,
+    LieButcherDifferentials,
+    LyndonBrackets,
+    BCKBrackets,
+    MKWBrackets,
+    VectorFieldBrackets,
+    VectorFieldLift,
+)
 
 __all__ = [
     "form_butcher_differentials",
@@ -36,4 +45,12 @@ __all__ = [
     "form_lyndon_lift",
     "form_bck_lift",
     "form_mkw_lift",
+    # Vector field lift types
+    "ButcherDifferentials",
+    "LieButcherDifferentials",
+    "LyndonBrackets",
+    "BCKBrackets",
+    "MKWBrackets",
+    "VectorFieldBrackets",
+    "VectorFieldLift",
 ]

@@ -12,13 +12,17 @@ from stochastax.control_lifts.branched_signature_ito import (
 )
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
-from stochastax.control_lifts.signature_types import LogSignature
+from stochastax.control_lifts.signature_types import LogSignature, BCKLogSignature
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra
-from stochastax.vector_field_lifts.bck_lift import form_bck_lift
+from stochastax.vector_field_lifts import form_bck_lift, form_mkw_lift
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
-from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
+from stochastax.vector_field_lifts.vector_field_lift_types import (
+    LyndonBrackets,
+    BCKBrackets,
+    MKWBrackets,
+)
+from stochastax.control_lifts.signature_types import MKWLogSignature
 from typing import Callable
 from tests.conftest import _so3_generators
 
@@ -139,7 +143,7 @@ def build_standard_manifold_case(
 
 def build_bck_log_ode_inputs(
     depth: int, dim: int, delta: float = 0.35, cov_scale: float = 0.0
-) -> tuple[list, object, jax.Array]:
+) -> tuple[BCKBrackets, BCKLogSignature, jax.Array]:
     """Assemble BCK brackets and non-planar branched log-signature."""
     hopf = GLHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
@@ -163,7 +167,7 @@ def build_bck_log_ode_inputs(
 
 def build_mkw_log_ode_inputs(
     depth: int, steps: int = 12, seed: int = 0, cov_scale: float = 0.0
-) -> tuple[list, object, jax.Array]:
+) -> tuple[MKWBrackets, MKWLogSignature, jax.Array]:
     """Assemble MKW brackets and planar branched log-signature on S^2."""
     A = _so3_generators()
     dim = A.shape[0]

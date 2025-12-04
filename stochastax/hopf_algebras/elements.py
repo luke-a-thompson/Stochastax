@@ -9,7 +9,7 @@ from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra
 
 if TYPE_CHECKING:
     from stochastax.control_lifts.signature_types import (
-        Signature,
+        PathSignature,
         LogSignature,
         BCKSignature,
         BCKLogSignature,
@@ -68,7 +68,7 @@ class GroupElement:
         return cls(hopf=hopf, coeffs=coeffs, interval=interval)
 
     @overload
-    def log(self: Signature) -> LogSignature: ...
+    def log(self: PathSignature) -> LogSignature: ...
     @overload
     def log(self: BCKSignature) -> BCKLogSignature: ...
     @overload
@@ -113,7 +113,7 @@ class LieElement:
     interval: tuple[float, float]
 
     @overload
-    def exp(self: LogSignature) -> Signature: ...
+    def exp(self: LogSignature) -> PathSignature: ...
     @overload
     def exp(self: BCKLogSignature) -> BCKSignature: ...
     @overload
