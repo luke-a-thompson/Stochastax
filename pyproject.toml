@@ -1,6 +1,6 @@
 [project]
 name = "stochastax"
-version = "0.4.2"
+version = "0.5.0"
 description = "A Jax library for advanced stochastic analysis."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -38,10 +38,10 @@ classifiers = [
 dependencies = ["jax>=0.7.0"]
 
 [project.urls]
-"Homepage" = "https://github.com/luke-a-thompson/QuickSig"
-"Bug Reports" = "https://github.com/luke-a-thompson/QuickSig/issues"
-"Source" = "https://github.com/luke-a-thompson/QuickSig"
-"Documentation" = "https://github.com/luke-a-thompson/QuickSig/blob/master/README.md"
+"Homepage" = "https://github.com/luke-a-thompson/Stochastax"
+"Bug Reports" = "https://github.com/luke-a-thompson/Stochastax/issues"
+"Source" = "https://github.com/luke-a-thompson/Stochastax"
+"Documentation" = "https://github.com/luke-a-thompson/Stochastax/blob/master/README.md"
 
 [project.optional-dependencies]
 cuda = ["jax[cuda12]>=0.7.0"]
@@ -71,8 +71,8 @@ include = ["/stochastax", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --cov=stochastax --cov-report=term-missing --benchmark-autosave --benchmark-compare=baseline --benchmark-compare-fail=mean:5%"
+python_files = ["test_*.py", "bench_*.py"]
+addopts = "-v --benchmark-autosave --benchmark-compare=baseline --benchmark-compare-fail=mean:5%"
 minversion = "8.0"
 
 [tool.mypy]
