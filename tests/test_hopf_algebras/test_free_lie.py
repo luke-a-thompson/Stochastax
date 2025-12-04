@@ -10,10 +10,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.hopf_algebras.free_lie import (
     commutator,
+    enumerate_lyndon_basis,
 )
+from tests.test_integrators.conftest import benchmark_wrapper
 from stochastax.integrators.series import form_lie_series
 
 
@@ -98,3 +101,15 @@ def test_apply_lie_coeffs_shape_error() -> None:
     with pytest.raises(ValueError, match="does not match"):
         lam_by_len = [lam]
         form_lie_series(W, lam_by_len)
+
+
+@pytest.mark.benchmark(group="free_lie")
+def test_enumerate_lyndon_basis_benchmark(benchmark: BenchmarkFixture) -> None:
+    """Benchmark enumeration of Lyndon words at depth=6, dim=4."""
+    depth = 6
+    dim = 4
+
+    def _run_enumeration(_: int) -> list[jax.Array]:
+        return enumerate_lyndon_basis(depth, dim)
+
+    _ = benchmark_wrapper(benchmark, _run_enumeration, 0)

@@ -82,11 +82,11 @@ def _enumerate_mkw_trees_n(n: int) -> MKWForest:
     return MKWForest(Forest(parent=parents))
 
 
-def enumerate_mkw_trees(max_n: int) -> list[MKWForest]:
-    """Enumerate ordered (plane) rooted trees for all degrees 1..``max_n``.
+def enumerate_mkw_trees(order: int) -> list[MKWForest]:
+    """Enumerate ordered (plane) rooted trees for all degrees 1..``order``.
 
     Returns a list where entry at index n-1 is the ``MKWForest`` for degree n.
     """
-    if max_n <= 0:
-        raise ValueError("max_n must be >= 1")
-    return [_enumerate_mkw_trees_n(n) for n in range(1, max_n + 1)]
+    if order <= 0:
+        raise ValueError("order must be >= 1")
+    return [_enumerate_mkw_trees_n(n) for n in range(1, order + 1)]

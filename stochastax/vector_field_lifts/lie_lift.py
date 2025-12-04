@@ -6,8 +6,8 @@ import numpy as np
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.hopf_algebras.free_lie import (
-    find_split_points_vectorized,
-    compute_lyndon_level_brackets,
+    build_lyndon_dependency_tables,
+    commutator,
 )
 
 
@@ -31,31 +31,50 @@ def form_lyndon_brackets_from_words(
         Lyndon words of length k+1 with shape [Nk, n, n]. Empty levels yield
         a [0, n, n] array.
     """
+    n = A.shape[-1]
     if not words_by_len:
-        n = A.shape[-1]
         depth = 0
         return LyndonBrackets([jnp.zeros((0, n, n), dtype=A.dtype) for _ in range(depth)])
 
-    n = A.shape[-1]
+    (
+        _splits,
+        prefix_levels,
+        prefix_indices,
+        suffix_levels,
+        suffix_indices,
+    ) = build_lyndon_dependency_tables(words_by_len)
+
     all_brackets: list[jax.Array] = []
 
-    for word_len_idx, words in enumerate(words_by_len):
+    for level_idx, words in enumerate(words_by_len):
         if words.size == 0:
             all_brackets.append(jnp.zeros((0, n, n), dtype=A.dtype))
             continue
 
-        word_length = word_len_idx + 1  # words at index k have length k+1
-
-        # Compute brackets for this level
-        if word_length == 1:
-            # Level 1: just A[i] for each word
-            level_brackets = A[words[:, 0]]  # [N1, n, n]
+        if level_idx == 0:
+            # Level 0: single letters, brackets are just the generators A[i].
+            level_brackets = A[words[:, 0]]
         else:
-            # Level > 1: find splits and compute brackets
-            splits = find_split_points_vectorized(words, words_by_len[:word_len_idx])
-            level_brackets = compute_lyndon_level_brackets(
-                words, splits, words_by_len[:word_len_idx], all_brackets, A
-            )
+            pl = prefix_levels[level_idx]
+            pi = prefix_indices[level_idx]
+            sl = suffix_levels[level_idx]
+            si = suffix_indices[level_idx]
+
+            num_words = int(words.shape[0])
+            level_list: list[jax.Array] = []
+            for word_idx in range(num_words):
+                prefix_level = int(pl[word_idx])
+                prefix_index = int(pi[word_idx])
+                suffix_level = int(sl[word_idx])
+                suffix_index = int(si[word_idx])
+                if prefix_level < 0 or suffix_level < 0:
+                    raise ValueError("Invalid Lyndon prefix/suffix metadata encountered.")
+
+                prefix_bracket = all_brackets[prefix_level][prefix_index]
+                suffix_bracket = all_brackets[suffix_level][suffix_index]
+                level_list.append(commutator(prefix_bracket, suffix_bracket))
+
+            level_brackets = jnp.stack(level_list, axis=0)
 
         all_brackets.append(level_brackets)
 

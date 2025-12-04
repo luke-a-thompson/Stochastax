@@ -101,11 +101,11 @@ def _enumerate_bck_trees_n(n: int) -> BCKForest:
     return BCKForest(Forest(parent=parents))
 
 
-def enumerate_bck_trees(max_n: int) -> list[BCKForest]:
-    """Enumerate unordered rooted trees for all degrees 1..``max_n``.
+def enumerate_bck_trees(order: int) -> list[BCKForest]:
+    """Enumerate unordered rooted trees for all degrees 1..``order``.
 
     Returns a list where entry at index n-1 is the ``BCKForest`` for degree n.
     """
-    if max_n <= 0:
-        raise ValueError("max_n must be >= 1")
-    return [_enumerate_bck_trees_n(n) for n in range(1, max_n + 1)]
+    if order <= 0:
+        raise ValueError("order must be >= 1")
+    return [_enumerate_bck_trees_n(n) for n in range(1, order + 1)]
