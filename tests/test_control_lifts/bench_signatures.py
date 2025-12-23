@@ -118,7 +118,7 @@ def test_bck_signature_benchmark(
     def _bck_full_signature(x: jax.Array) -> jax.Array:
         sig = compute_nonplanar_branched_signature(
             path=x,
-            order_m=depth,
+            depth=depth,
             hopf=hopf,
             mode="full",
         )
@@ -146,7 +146,7 @@ def test_mkw_signature_benchmark(
     def _mkw_full_signature(x: jax.Array) -> jax.Array:
         sig = compute_planar_branched_signature(
             path=x,
-            order_m=depth,
+            depth=depth,
             hopf=hopf,
             mode="full",
         )

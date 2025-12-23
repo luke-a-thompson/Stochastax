@@ -37,7 +37,7 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     cov = jnp.zeros((steps, dim, dim), dtype=jnp.float32)
     sig = compute_planar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov,
@@ -71,7 +71,7 @@ def test_mkw_log_ode_euclidean(
     cov = jnp.zeros((1, 1, 1), dtype=jnp.float32)
     sig = compute_planar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov,
@@ -104,14 +104,14 @@ def test_mkw_signature_quadratic_variation(depth: int, dim: int) -> None:
     cov_dtI = jnp.tile((dt * identity)[None, :, :], reps=(steps, 1, 1))
     sig_zero = compute_planar_branched_signature(
         path=W.path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov_zero,
     )
     sig_dtI = compute_planar_branched_signature(
         path=W.path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov_dtI,
@@ -156,7 +156,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
         cov = jnp.tile((dt * identity)[None, :, :], reps=(steps, 1, 1))
         sig = compute_planar_branched_signature(
             path=w.path,
-            order_m=depth,
+            depth=depth,
             hopf=hopf,
             mode="full",
             cov_increments=cov,
@@ -190,7 +190,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
             cov = jnp.tile((dt_small * identity)[None, :, :], reps=(1, 1, 1))
             sig = compute_planar_branched_signature(
                 path=seg,
-                order_m=depth,
+                depth=depth,
                 hopf=hopf,
                 mode="full",
                 cov_increments=cov,

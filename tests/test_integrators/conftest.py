@@ -155,7 +155,7 @@ def build_bck_log_ode_inputs(
     cov = jnp.tile((cov_scale * identity)[None, :, :], reps=(steps, 1, 1))
     signature = compute_nonplanar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov,
@@ -183,7 +183,7 @@ def build_mkw_log_ode_inputs(
     cov = jnp.tile((cov_scale * identity)[None, :, :], reps=(steps, 1, 1))
     signature = compute_planar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov,

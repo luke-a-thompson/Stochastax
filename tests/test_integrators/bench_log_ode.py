@@ -136,7 +136,7 @@ def test_bck_log_ode_benchmark_stepwise(
             cov = jnp.zeros((1, dim, dim), dtype=inc.dtype)
             signature = compute_nonplanar_branched_signature(
                 path=seg_path,
-                order_m=depth,
+                depth=depth,
                 hopf=hopf,
                 mode="full",
                 cov_increments=cov,
@@ -179,7 +179,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
             cov = jnp.zeros((1, dim, dim), dtype=inc.dtype)
             signature = compute_planar_branched_signature(
                 path=seg_path,
-                order_m=depth,
+                depth=depth,
                 hopf=hopf,
                 mode="full",
                 cov_increments=cov,

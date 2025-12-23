@@ -17,7 +17,7 @@ def test_bck_signature_shape_full(dim: int, depth: int) -> None:
     hopf = GLHopfAlgebra.build(dim, depth)
     sig = compute_nonplanar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
     )
@@ -36,7 +36,7 @@ def test_bck_signature_shape_stream(dim: int, depth: int) -> None:
     hopf = GLHopfAlgebra.build(dim, depth)
     sigs = compute_nonplanar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="stream",
     )
@@ -66,14 +66,14 @@ def test_bck_signature_quadratic_variation(depth: int, dim: int) -> None:
     cov_dtI = jnp.tile((dt * identity)[None, :, :], reps=(steps, 1, 1))
     sig_zero = compute_nonplanar_branched_signature(
         path=W.path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov_zero,
     )
     sig_dtI = compute_nonplanar_branched_signature(
         path=W.path,
-        order_m=depth,
+        depth=depth,
         hopf=hopf,
         mode="full",
         cov_increments=cov_dtI,
