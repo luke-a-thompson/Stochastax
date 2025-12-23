@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import final, override, Sequence, TypeVar
+from typing import final, override, Sequence, TypeVar, Literal
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import numpy as np
@@ -138,19 +138,30 @@ class ShuffleHopfAlgebra(HopfAlgebra):
         )
 
     @override
-    def basis_size(self, level: int | None = None) -> int:
+    def basis_size(
+        self, level: int | None = None, basis: Literal["lyndon", "tensor"] = "lyndon"
+    ) -> int:
         if not self.shape_count_by_degree:
             raise ValueError(
                 "ShuffleHopfAlgebra must be constructed via ShuffleHopfAlgebra.build to "
                 "populate per-degree shape counts."
             )
         if level is None:
-            return int(sum(self.shape_count_by_degree))
+            if basis == "lyndon":
+                return sum(len(self.lyndon_basis_by_degree[i]) for i in range(self.depth))
+            return sum(self.shape_count_by_degree)
         if level < 0 or level >= self.depth:
             raise ValueError(
                 f"Requested level {level} outside available range [0, {self.depth - 1}]."
             )
+        if basis == "lyndon":
+            return len(self.lyndon_basis_by_degree[level])
         return self.shape_count_by_degree[level]
+
+    @override
+    def zero(self, depth: int, dtype: jnp.dtype) -> list[jax.Array]:
+        """Return zero element in tensor basis (internal representation)."""
+        return [jnp.zeros((self.basis_size(i, basis="tensor"),), dtype=dtype) for i in range(depth)]
 
     def _unflatten_levels(self, levels: list[jax.Array]) -> list[jax.Array]:
         dim = self.ambient_dimension
