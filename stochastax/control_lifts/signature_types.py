@@ -1,5 +1,8 @@
-from typing import NewType
+from typing import NewType, Protocol
 from stochastax.hopf_algebras.elements import GroupElement, LieElement
+
+import jax
+from stochastax.hopf_algebras.hopf_algebras import HopfAlgebraT
 
 # Backward-compatibility type names, now as newtypes over the new element classes.
 # Runtime representation remains GroupElement/LieElement.
@@ -14,3 +17,12 @@ MKWLogSignature = NewType("MKWLogSignature", LieElement)
 
 Signature = PathSignature | BCKSignature | MKWSignature
 PrimitiveSignature = LogSignature | BCKLogSignature | MKWLogSignature
+
+
+class SignatureLift(Protocol[HopfAlgebraT]):
+    def __call__(
+        self,
+        path: jax.Array,
+        depth: int,
+        hopf: HopfAlgebraT,
+    ) -> Signature | list[Signature]: ...

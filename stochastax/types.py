@@ -9,7 +9,7 @@ Public API:
 """
 
 from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra
-from stochastax.control_lifts.signature_types import Signature, PrimitiveSignature
+from stochastax.control_lifts.signature_types import Signature, PrimitiveSignature, SignatureLift
 from stochastax.vector_field_lifts.vector_field_lift_types import (
     VectorFieldBrackets,
     VectorFieldLift,
@@ -22,6 +22,7 @@ __all__ = [
     # Signatures
     "Signature",
     "PrimitiveSignature",
+    "SignatureLift",
     # Vector field brackets
     "VectorFieldBrackets",
     # Vector field lifts

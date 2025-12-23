@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import final, override, Sequence
+from typing import final, override, Sequence, TypeVar
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import numpy as np
@@ -627,3 +627,6 @@ class MKWHopfAlgebra(HopfAlgebra):
     @override
     def __str__(self) -> str:
         return "Munthe-Kaas-Wright Hopf Algebra"
+
+
+HopfAlgebraT = TypeVar("HopfAlgebraT", bound=HopfAlgebra, contravariant=True)
