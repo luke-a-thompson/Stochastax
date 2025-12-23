@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional, overload, cast
+from typing import Literal, overload, cast
 
 import jax
 import jax.numpy as jnp
@@ -20,24 +20,24 @@ def _zero_coeffs_from_hopf(hopf: HopfAlgebra, depth: int, dtype: jnp.dtype) -> l
 
 def local_ito_character(
     delta_x: jax.Array,
-    cov: Optional[jax.Array],
-    order_m: int,
+    cov: jax.Array | None,
+    depth: int,
     hopf: GLHopfAlgebra | MKWHopfAlgebra,
-    extra: Optional[dict[int, float]] = None,
+    extra: dict[int, float] | None = None,
 ) -> list[jax.Array]:
     """Build per-step infinitesimal character for Itô branched signature."""
-    if order_m != hopf.depth:
-        raise ValueError("order_m must equal hopf.depth")
+    if depth != hopf.depth:
+        raise ValueError("depth must equal hopf.depth")
     d = hopf.ambient_dimension
     dtype = delta_x.dtype
-    out = _zero_coeffs_from_hopf(hopf, order_m, dtype)
+    out = _zero_coeffs_from_hopf(hopf, depth, dtype)
 
     # Degree 1: single-node tree with colour i gets delta_x[i]
     # We assume shape-major, then colour-lexicographic layout; colours for shape 0 occupy indices 0..d-1.
     out[0] = out[0].at[jnp.arange(d)].set(delta_x)
 
     # Degree 2: Itô correction on chain-of-length-2
-    if order_m >= 2 and cov is not None:
+    if depth >= 2 and cov is not None:
         if hopf.degree2_chain_indices is None:
             raise ValueError("Degree-2 chain indices not available in Hopf algebra.")
         idx = hopf.degree2_chain_indices  # shape (d, d) of flattened indices
@@ -56,63 +56,64 @@ def local_ito_character(
 
 def _branched_signature_ito_impl(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: GLHopfAlgebra | MKWHopfAlgebra,
-    mode: Literal["full", "stream"],
-    cov_increments: Optional[jax.Array] = None,
-    higher_local_moments: Optional[list[dict[int, float]]] = None,
+    mode: Literal["full", "stream", "incremental"],
+    cov_increments: jax.Array | None = None,
+    higher_local_moments: list[dict[int, float]] | None = None,
 ) -> list[jax.Array] | list[list[jax.Array]]:
     """Compute the Itô branched signature along a sampled path (shared implementation).
 
     - ``mode="full"``: return the terminal signature levels as a single list of arrays.
-    - ``mode="stream"``: return a list over time of signature levels, one entry per increment,
-      in the style of ``compute_path_signature(..., mode="stream")``.
+    - ``mode="stream"``: return a list over time of cumulative signature levels, one entry per increment.
+    - ``mode="incremental"``: return a list over time of per-step signature levels (not cumulative).
     """
     if path.ndim != 2:
         raise ValueError(f"Expected path of shape [T, d], got {path.shape}")
     T, d = path.shape
-    if order_m <= 0:
-        raise ValueError("order_m must be >= 1")
+    if depth <= 0:
+        raise ValueError("depth must be >= 1")
     if T <= 1:
         dtype = path.dtype
-        S0 = _zero_coeffs_from_hopf(hopf, order_m, dtype)
+        S0 = _zero_coeffs_from_hopf(hopf, depth, dtype)
         if mode == "full":
             return S0
         # For an empty or length-1 path, there are no non-trivial prefixes.
         return []
 
-    if hopf.depth != order_m:
-        raise ValueError("forests must cover degrees 1..order_m (exact).")
+    if hopf.depth != depth:
+        raise ValueError("forests must cover degrees 1..depth (exact).")
 
     dtype = path.dtype
-    sig = _zero_coeffs_from_hopf(hopf, order_m, dtype)  # unit (tail)
 
-    stream_sig: Optional[list[list[jax.Array]]] = [] if mode == "stream" else None
-
-    for k in range(T - 1):
+    def _compute_step(k: int) -> list[jax.Array]:
         delta_x = path[k + 1] - path[k]
         cov = cov_increments[k] if cov_increments is not None else None
         extra = higher_local_moments[k] if higher_local_moments is not None else None
-        a_k = local_ito_character(delta_x, cov, order_m, hopf, extra)
-        E_k = hopf.exp(a_k)
-        sig = hopf.product(sig, E_k)
-        if stream_sig is not None:
-            stream_sig.append(sig)
+        a_k = local_ito_character(delta_x, cov, depth, hopf, extra)
+        return hopf.exp(a_k)
 
-    if mode == "full":
-        return sig
-    assert stream_sig is not None
-    return stream_sig
+    match mode:
+        case "incremental":
+            return [_compute_step(k) for k in range(T - 1)]
+        case "full" | "stream":
+            sig = _zero_coeffs_from_hopf(hopf, depth, dtype)
+            stream_sig: list[list[jax.Array]] = []
+            for k in range(T - 1):
+                sig = hopf.product(sig, _compute_step(k))
+                if mode == "stream":
+                    stream_sig.append(sig)
+            return sig if mode == "full" else stream_sig
 
 
 @overload
 def compute_planar_branched_signature(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: MKWHopfAlgebra,
     mode: Literal["full"],
-    cov_increments: Optional[jax.Array] = ...,
-    higher_local_moments: Optional[list[dict[int, float]]] = ...,
+    cov_increments: jax.Array | None = ...,
+    higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> MKWSignature: ...
 
@@ -120,36 +121,37 @@ def compute_planar_branched_signature(
 @overload
 def compute_planar_branched_signature(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: MKWHopfAlgebra,
-    mode: Literal["stream"],
-    cov_increments: Optional[jax.Array] = ...,
-    higher_local_moments: Optional[list[dict[int, float]]] = ...,
+    mode: Literal["stream", "incremental"],
+    cov_increments: jax.Array | None = ...,
+    higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> list[MKWSignature]: ...
 
 
 def compute_planar_branched_signature(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: MKWHopfAlgebra,
-    mode: Literal["full", "stream"],
-    cov_increments: Optional[jax.Array] = None,
-    higher_local_moments: Optional[list[dict[int, float]]] = None,
+    mode: Literal["full", "stream", "incremental"],
+    cov_increments: jax.Array | None = None,
+    higher_local_moments: list[dict[int, float]] | None = None,
     index_start: int = 0,
 ) -> MKWSignature | list[MKWSignature]:
     """Planar (MKW) Itô branched signature wrapper.
 
     Returns:
         - ``mode="full"``: a single ``MKWSignature`` for the terminal signature.
-        - ``mode="stream"``: a list of ``MKWSignature``, one per prefix.
+        - ``mode="stream"``: a list of ``MKWSignature``, one per prefix (cumulative).
+        - ``mode="incremental"``: a list of ``MKWSignature``, one per step (not cumulative).
     """
     if path.ndim != 2:
         raise ValueError(f"Expected path of shape [T, d], got {path.shape}")
     T = path.shape[0]
     result = _branched_signature_ito_impl(
         path=path,
-        order_m=order_m,
+        depth=depth,
         hopf=hopf,
         mode=mode,
         cov_increments=cov_increments,
@@ -173,16 +175,26 @@ def compute_planar_branched_signature(
                 )
                 for i, coeffs in enumerate(stream_coeffs)
             ]
+        case "incremental":
+            inc_coeffs = cast(list[list[jax.Array]], result)
+            return [
+                MKWSignature(
+                    GroupElement(
+                        hopf=hopf, coeffs=coeffs, interval=(index_start + i, index_start + i + 1)
+                    )
+                )
+                for i, coeffs in enumerate(inc_coeffs)
+            ]
 
 
 @overload
 def compute_nonplanar_branched_signature(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: GLHopfAlgebra,
     mode: Literal["full"],
-    cov_increments: Optional[jax.Array] = ...,
-    higher_local_moments: Optional[list[dict[int, float]]] = ...,
+    cov_increments: jax.Array | None = ...,
+    higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> BCKSignature: ...
 
@@ -190,36 +202,37 @@ def compute_nonplanar_branched_signature(
 @overload
 def compute_nonplanar_branched_signature(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: GLHopfAlgebra,
-    mode: Literal["stream"],
-    cov_increments: Optional[jax.Array] = ...,
-    higher_local_moments: Optional[list[dict[int, float]]] = ...,
+    mode: Literal["stream", "incremental"],
+    cov_increments: jax.Array | None = ...,
+    higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> list[BCKSignature]: ...
 
 
 def compute_nonplanar_branched_signature(
     path: jax.Array,
-    order_m: int,
+    depth: int,
     hopf: GLHopfAlgebra,
-    mode: Literal["full", "stream"],
-    cov_increments: Optional[jax.Array] = None,
-    higher_local_moments: Optional[list[dict[int, float]]] = None,
+    mode: Literal["full", "stream", "incremental"],
+    cov_increments: jax.Array | None = None,
+    higher_local_moments: list[dict[int, float]] | None = None,
     index_start: int = 0,
 ) -> BCKSignature | list[BCKSignature]:
     """Nonplanar (BCK/GL) Itô branched signature wrapper.
 
     Returns:
         - ``mode="full"``: a single ``BCKSignature`` for the terminal signature.
-        - ``mode="stream"``: a list of ``BCKSignature``, one per prefix.
+        - ``mode="stream"``: a list of ``BCKSignature``, one per prefix (cumulative).
+        - ``mode="incremental"``: a list of ``BCKSignature``, one per step (not cumulative).
     """
     if path.ndim != 2:
         raise ValueError(f"Expected path of shape [T, d], got {path.shape}")
     T = path.shape[0]
     result = _branched_signature_ito_impl(
         path=path,
-        order_m=order_m,
+        depth=depth,
         hopf=hopf,
         mode=mode,
         cov_increments=cov_increments,
@@ -242,6 +255,16 @@ def compute_nonplanar_branched_signature(
                     )
                 )
                 for i, coeffs in enumerate(stream_coeffs)
+            ]
+        case "incremental":
+            inc_coeffs = cast(list[list[jax.Array]], result)
+            return [
+                BCKSignature(
+                    GroupElement(
+                        hopf=hopf, coeffs=coeffs, interval=(index_start + i, index_start + i + 1)
+                    )
+                )
+                for i, coeffs in enumerate(inc_coeffs)
             ]
 
 
@@ -278,14 +301,14 @@ if __name__ == "__main__":
 
     ito_zero_sig = compute_nonplanar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=bck_hopf,
         mode="full",
         cov_increments=cov_zero,
     )
     ito_dx_dx_sig = compute_planar_branched_signature(
         path=path,
-        order_m=depth,
+        depth=depth,
         hopf=mkw_hopf,
         mode="full",
         cov_increments=cov_dx_dx,

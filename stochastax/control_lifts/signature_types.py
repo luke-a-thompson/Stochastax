@@ -1,4 +1,4 @@
-from typing import NewType, Protocol
+from typing import NewType, Protocol, Literal
 from stochastax.hopf_algebras.elements import GroupElement, LieElement
 
 import jax
@@ -19,10 +19,11 @@ Signature = PathSignature | BCKSignature | MKWSignature
 PrimitiveSignature = LogSignature | BCKLogSignature | MKWLogSignature
 
 
-class SignatureLift(Protocol[HopfAlgebraT]):
+class ControlLift(Protocol[HopfAlgebraT]):
     def __call__(
         self,
         path: jax.Array,
         depth: int,
         hopf: HopfAlgebraT,
+        mode: Literal["full", "stream", "incremental"],
     ) -> Signature | list[Signature]: ...
