@@ -125,7 +125,7 @@ def test_bck_signature_benchmark(
         return sig.flatten()
 
     flattened = benchmark_wrapper(benchmark, _bck_full_signature, path)
-    expected_dim = sum(hopf.basis_size(level) for level in range(depth))
+    expected_dim = hopf.basis_size()
     assert flattened.shape == (expected_dim,)
 
 
@@ -153,5 +153,5 @@ def test_mkw_signature_benchmark(
         return sig.flatten()
 
     flattened = benchmark_wrapper(benchmark, _mkw_full_signature, path)
-    expected_dim = sum(hopf.basis_size(level) for level in range(depth))
+    expected_dim = hopf.basis_size()
     assert flattened.shape == (expected_dim,)

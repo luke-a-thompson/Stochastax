@@ -22,7 +22,7 @@ def test_bck_signature_shape_full(dim: int, depth: int) -> None:
         mode="full",
     )
     flattened = sig.flatten()
-    expected_dim = sum(hopf.basis_size(level) for level in range(depth))
+    expected_dim = hopf.basis_size()
     assert flattened.shape == (expected_dim,)
 
 
@@ -41,7 +41,7 @@ def test_bck_signature_shape_stream(dim: int, depth: int) -> None:
         mode="stream",
     )
     assert len(sigs) == num_steps
-    expected_dim = sum(hopf.basis_size(level) for level in range(depth))
+    expected_dim = hopf.basis_size()
     stacked = jnp.stack([sig.flatten() for sig in sigs])
     assert stacked.shape == (num_steps, expected_dim)
 

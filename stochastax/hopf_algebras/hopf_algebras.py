@@ -29,8 +29,13 @@ class HopfAlgebra(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def basis_size(self, level: int) -> int:
-        """Number of basis elements at given level (degree = level + 1 for signatures).
+    def basis_size(self, level: int | None = None) -> int:
+        """Number of basis elements.
+
+        - If ``level`` is provided: return the number of basis elements at that level
+          (degree = level + 1 for signatures).
+        - If ``level`` is ``None``: return the total number of basis elements across all
+          stored levels (i.e. the sum over ``level=0..depth-1``).
 
         Implementations must define how many coefficients live at each level.
         """
@@ -133,15 +138,19 @@ class ShuffleHopfAlgebra(HopfAlgebra):
         )
 
     @override
-    def basis_size(self, level: int) -> int:
+    def basis_size(self, level: int | None = None) -> int:
+        if not self.shape_count_by_degree:
+            raise ValueError(
+                "ShuffleHopfAlgebra must be constructed via ShuffleHopfAlgebra.build to "
+                "populate per-degree shape counts."
+            )
+        if level is None:
+            return int(sum(self.shape_count_by_degree))
         if level < 0 or level >= self.depth:
             raise ValueError(
                 f"Requested level {level} outside available range [0, {self.depth - 1}]."
             )
-        if self.shape_count_by_degree:
-            return self.shape_count_by_degree[level]
-        # Stateless fallback (legacy instances not created via build()).
-        return int(self.ambient_dimension ** (level + 1))
+        return self.shape_count_by_degree[level]
 
     def _unflatten_levels(self, levels: list[jax.Array]) -> list[jax.Array]:
         dim = self.ambient_dimension
@@ -368,11 +377,16 @@ class GLHopfAlgebra(HopfAlgebra):
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
 
     @override
-    def basis_size(self, level: int) -> int:
+    def basis_size(self, level: int | None = None) -> int:
         if not self.shape_count_by_degree:
             raise ValueError(
                 "GLHopfAlgebra must be constructed via GLHopfAlgebra.build to "
                 "populate per-degree shape counts."
+            )
+        if level is None:
+            return sum(
+                num_shapes * (self.ambient_dimension ** (idx + 1))
+                for idx, num_shapes in enumerate(self.shape_count_by_degree)
             )
         if level < 0 or level >= self.depth:
             raise ValueError(
@@ -510,11 +524,16 @@ class MKWHopfAlgebra(HopfAlgebra):
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
 
     @override
-    def basis_size(self, level: int) -> int:
+    def basis_size(self, level: int | None = None) -> int:
         if not self.shape_count_by_degree:
             raise ValueError(
                 "MKWHopfAlgebra must be constructed via MKWHopfAlgebra.build to "
                 "populate per-degree shape counts."
+            )
+        if level is None:
+            return sum(
+                num_shapes * (self.ambient_dimension ** (idx + 1))
+                for idx, num_shapes in enumerate(self.shape_count_by_degree)
             )
         if level < 0 or level >= self.depth:
             raise ValueError(
