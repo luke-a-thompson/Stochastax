@@ -37,5 +37,4 @@ class VectorFieldLift(Protocol[HopfAlgebraT]):
         vector_fields: list[Callable[[jax.Array], jax.Array]],
         base_point: jax.Array,
         hopf: HopfAlgebraT,
-        project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
     ) -> VectorFieldBrackets: ...
