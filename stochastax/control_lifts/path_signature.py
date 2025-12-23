@@ -80,9 +80,9 @@ def compute_path_signature(
         raise ValueError(
             f"Mismatch between hopf ambient dimension ({hopf.ambient_dimension}) and path features ({n_features})."
         )
-    if hopf.max_degree != depth:
+    if hopf.depth != depth:
         raise ValueError(
-            f"Mismatch between hopf.max_degree ({hopf.max_degree}) and depth argument ({depth})."
+            f"Mismatch between hopf.depth ({hopf.depth}) and depth argument ({depth})."
         )
 
     if seq_len <= 1:

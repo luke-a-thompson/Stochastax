@@ -24,7 +24,7 @@ def test_shuffle_hopf_build_benchmark(
     hopf = benchmark(_builder)
     assert isinstance(hopf, ShuffleHopfAlgebra)
     assert hopf.ambient_dimension == dim
-    assert hopf.max_degree == depth
+    assert hopf.depth == depth
     assert len(hopf.lyndon_basis_by_degree) == depth
 
 
@@ -43,7 +43,7 @@ def test_gl_hopf_build_benchmark(
     hopf = benchmark(_builder)
     assert isinstance(hopf, GLHopfAlgebra)
     assert hopf.ambient_dimension == dim
-    assert hopf.max_order == depth
+    assert hopf.depth == depth
     assert len(hopf.forests_by_degree) == depth
     assert hopf.degree2_chain_indices is not None
 
@@ -63,6 +63,6 @@ def test_mkw_hopf_build_benchmark(
     hopf = benchmark(_builder)
     assert isinstance(hopf, MKWHopfAlgebra)
     assert hopf.ambient_dimension == dim
-    assert hopf.max_order == depth
+    assert hopf.depth == depth
     assert len(hopf.forests_by_degree) == depth
     assert hopf.degree2_chain_indices is not None

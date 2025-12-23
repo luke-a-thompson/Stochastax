@@ -26,8 +26,8 @@ def local_ito_character(
     extra: Optional[dict[int, float]] = None,
 ) -> list[jax.Array]:
     """Build per-step infinitesimal character for Itô branched signature."""
-    if order_m != hopf.max_order:
-        raise ValueError("order_m must equal hopf.max_degree")
+    if order_m != hopf.depth:
+        raise ValueError("order_m must equal hopf.depth")
     d = hopf.ambient_dimension
     dtype = delta_x.dtype
     out = _zero_coeffs_from_hopf(hopf, order_m, dtype)
@@ -81,7 +81,7 @@ def _branched_signature_ito_impl(
         # For an empty or length-1 path, there are no non-trivial prefixes.
         return []
 
-    if hopf.max_order != order_m:
+    if hopf.depth != order_m:
         raise ValueError("forests must cover degrees 1..order_m (exact).")
 
     dtype = path.dtype

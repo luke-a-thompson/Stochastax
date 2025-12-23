@@ -16,6 +16,7 @@ class HopfAlgebra(ABC):
     """Abstract Hopf algebra interface sufficient for signature/log-signature workflows."""
 
     ambient_dimension: int
+    depth: int
 
     @classmethod
     @abstractmethod
@@ -84,7 +85,7 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
-    max_degree: int = 0
+    depth: int = 0  # truncation depth (number of stored positive-degree levels)
     shape_count_by_degree: list[int] = field(default_factory=list)
     lyndon_basis_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     lyndon_split_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
@@ -121,7 +122,7 @@ class ShuffleHopfAlgebra(HopfAlgebra):
         lyndon_tuple = tuple(lyndon_levels)
         return cls(
             ambient_dimension=ambient_dim,
-            max_degree=depth,
+            depth=depth,
             shape_count_by_degree=shape_counts,
             lyndon_basis_by_degree=lyndon_tuple,
             lyndon_split_by_degree=split_tuple,
@@ -133,12 +134,11 @@ class ShuffleHopfAlgebra(HopfAlgebra):
 
     @override
     def basis_size(self, level: int) -> int:
+        if level < 0 or level >= self.depth:
+            raise ValueError(
+                f"Requested level {level} outside available range [0, {self.depth - 1}]."
+            )
         if self.shape_count_by_degree:
-            if level < 0 or level >= len(self.shape_count_by_degree):
-                raise ValueError(
-                    f"Requested level {level} outside available range "
-                    f"[0, {len(self.shape_count_by_degree) - 1}]."
-                )
             return self.shape_count_by_degree[level]
         # Stateless fallback (legacy instances not created via build()).
         return int(self.ambient_dimension ** (level + 1))
@@ -356,7 +356,7 @@ class GLHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
-    max_order: int = 0
+    depth: int = 0
     # Optional precomputed structures
     degree2_chain_indices: jax.Array | None = (
         None  # (ambient_dim, ambient_dim) mapping for degree-2 chains
@@ -374,10 +374,9 @@ class GLHopfAlgebra(HopfAlgebra):
                 "GLHopfAlgebra must be constructed via GLHopfAlgebra.build to "
                 "populate per-degree shape counts."
             )
-        if level < 0 or level >= len(self.shape_count_by_degree):
+        if level < 0 or level >= self.depth:
             raise ValueError(
-                f"Requested level {level} outside available range "
-                f"[0, {len(self.shape_count_by_degree) - 1}]."
+                f"Requested level {level} outside available range [0, {self.depth - 1}]."
             )
         n = level + 1
         num_shapes = self.shape_count_by_degree[level]
@@ -416,7 +415,7 @@ class GLHopfAlgebra(HopfAlgebra):
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
-            max_order=len(forests),
+            depth=len(forests),
             shape_count_by_degree=shape_counts,
             forests_by_degree=tuple(forests),
             children_by_degree=children_tables,
@@ -499,7 +498,7 @@ class MKWHopfAlgebra(HopfAlgebra):
     """
 
     ambient_dimension: int
-    max_order: int = 0
+    depth: int = 0
     # Optional precomputed structures
     degree2_chain_indices: jax.Array | None = (
         None  # (ambient_dim, ambient_dim) mapping for degree-2 chains
@@ -517,10 +516,9 @@ class MKWHopfAlgebra(HopfAlgebra):
                 "MKWHopfAlgebra must be constructed via MKWHopfAlgebra.build to "
                 "populate per-degree shape counts."
             )
-        if level < 0 or level >= len(self.shape_count_by_degree):
+        if level < 0 or level >= self.depth:
             raise ValueError(
-                f"Requested level {level} outside available range "
-                f"[0, {len(self.shape_count_by_degree) - 1}]."
+                f"Requested level {level} outside available range [0, {self.depth - 1}]."
             )
         n = level + 1
         num_shapes = self.shape_count_by_degree[level]
@@ -558,7 +556,7 @@ class MKWHopfAlgebra(HopfAlgebra):
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
-            max_order=len(forests),
+            depth=len(forests),
             shape_count_by_degree=shape_counts,
             forests_by_degree=tuple(forests),
             children_by_degree=children_tables,
