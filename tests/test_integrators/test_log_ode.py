@@ -1,16 +1,18 @@
 import jax
 import jax.numpy as jnp
 import pytest
+import diffrax
 from typing import Callable
 from jax.scipy.linalg import expm as jexpm
 
-from stochastax.integrators.log_ode import log_ode
+from stochastax.integrators.log_ode import log_ode, log_ode_homogeneous
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.vector_field_lifts.lie_lift import (
     form_lyndon_brackets_from_words,
     form_lyndon_lift,
+    form_lyndon_bracket_functions,
 )
 from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
 import jax.random as jrandom
@@ -51,7 +53,7 @@ def test_lyndon_log_ode_manifold_zero_control_identity() -> None:
     zero_path = jnp.zeros((2, dim), dtype=jnp.float32)  # shape (N+1, dim)
     hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
     primitive = compute_log_signature(zero_path, depth, hopf, "Lyndon words", mode="full")
-    y_next: jax.Array = log_ode(bracket_basis, primitive, y0)
+    y_next: jax.Array = log_ode_homogeneous(bracket_basis, primitive, y0)
 
     # y0 already unit norm; expect exact equality within tolerance
     assert jnp.allclose(y_next, y0, rtol=1e-7)
@@ -68,7 +70,7 @@ def test_lyndon_log_ode_euclidean_linear_matches_matrix_exponential(
     """Linear Euclidean log-ODE equals exp(Δ * sum_i A_i) @ y0 across depth/dim combos."""
     delta: float = 0.3
     bracket_basis, primitive, y0 = build_standard_log_ode_inputs(depth=depth, dim=dim, delta=delta)
-    y_logode: jax.Array = log_ode(bracket_basis, primitive, y0)
+    y_logode: jax.Array = log_ode_homogeneous(bracket_basis, primitive, y0)
 
     generators = build_block_rotation_generators(dim)
     combined_generator = jnp.sum(generators, axis=0)
@@ -104,7 +106,7 @@ def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
             # depth=1 => coefficients list is [inc]
             seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
             primitive = compute_log_signature(seg_W, depth, local_hopf, "Lyndon words", mode="full")
-            y_next = log_ode(bracket_basis, primitive, y_curr)
+            y_next = log_ode_homogeneous(bracket_basis, primitive, y_curr)
             return y_next, y_next
 
         y_T, ys = jax.lax.scan(step, y_init, increments)
@@ -223,7 +225,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance(
     # Whole interval
     hopf = ShuffleHopfAlgebra.build(ambient_dim=W.shape[1], depth=depth)
     log_sig_full = compute_log_signature(W, depth, hopf, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full, euclidean_initial_state)
+    y_full: jax.Array = log_ode_homogeneous(bracket_basis, log_sig_full, euclidean_initial_state)
 
     # Windowed
     window: int = 10
@@ -233,7 +235,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance(
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
         log_sig_seg = compute_log_signature(seg, depth, hopf, "Lyndon words", mode="full")
-        y_win = log_ode(bracket_basis, log_sig_seg, y_win)
+        y_win = log_ode_homogeneous(bracket_basis, log_sig_seg, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
 
@@ -269,7 +271,7 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
     # Whole interval
     hopf = ShuffleHopfAlgebra.build(ambient_dim=W.shape[1], depth=depth)
     log_sig_full = compute_log_signature(W, depth, hopf, "Lyndon words", mode="full")
-    y_full: jax.Array = log_ode(bracket_basis, log_sig_full, y0)
+    y_full: jax.Array = log_ode_homogeneous(bracket_basis, log_sig_full, y0)
 
     # Windowed
     window: int = 25
@@ -279,6 +281,81 @@ def test_lyndon_log_ode_euclidean_segmentation_invariance_commuting_high_depth(
         e = min(s + window, N)
         seg: jax.Array = W[s : e + 1, :]
         log_sig_seg = compute_log_signature(seg, depth, hopf, "Lyndon words", mode="full")
-        y_win = log_ode(bracket_basis, log_sig_seg, y_win)
+        y_win = log_ode_homogeneous(bracket_basis, log_sig_seg, y_win)
 
     assert jnp.allclose(y_full, y_win, rtol=1e-5)
+
+
+def test_log_ode_state_dependent_matches_linear_homogeneous() -> None:
+    """Bracket functions path matches homogeneous result for linear fields."""
+    dim = 2
+    depth = 1
+    delta = 0.2
+
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
+    vector_fields = _simple_vector_fields(dim)  # linear diagonal fields
+    bracket_functions = form_lyndon_bracket_functions(vector_fields, hopf)
+
+    # Build equivalent matrix brackets via lift at a base point
+    base_point = jnp.array([0.3, -0.4], dtype=jnp.float32)
+    bracket_mats = form_lyndon_lift(vector_fields, base_point, hopf)
+
+    # Two-point path -> primitive
+    path = jnp.stack(
+        [jnp.zeros((dim,), dtype=jnp.float32), jnp.full((dim,), delta, dtype=jnp.float32)]
+    )
+    primitive = compute_log_signature(path, depth, hopf, "Lyndon words", mode="full")
+
+    y0 = jnp.array([0.5, -1.0], dtype=jnp.float32)
+    y0 = y0 / jnp.linalg.norm(y0)
+
+    with jax.disable_jit():
+        y_fun = log_ode(primitive, y0, bracket_functions=bracket_functions)
+    y_mat = log_ode_homogeneous(bracket_mats, primitive, y0)
+
+    assert jnp.allclose(y_fun, y_mat, rtol=1e-5, atol=5e-6)
+
+
+def test_lyndon_log_ode_state_dependent_nonlinear_consistency() -> None:
+    """Nonlinear vector fields: bracket_functions integration is self-consistent."""
+    dim = 2
+    depth = 1
+    delta = 0.12
+
+    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
+
+    def vf0(y: jax.Array) -> jax.Array:
+        return jnp.sin(y)
+
+    def vf1(y: jax.Array) -> jax.Array:
+        return jnp.tanh(y) + 0.1 * y**2
+
+    vector_fields = [vf0, vf1]
+    bracket_functions = form_lyndon_bracket_functions(vector_fields, hopf)
+
+    path = jnp.stack(
+        [jnp.zeros((dim,), dtype=jnp.float32), jnp.full((dim,), delta, dtype=jnp.float32)]
+    )
+    primitive = compute_log_signature(path, depth, hopf, "Lyndon words", mode="full")
+    y0 = jnp.array([0.2, -0.3], dtype=jnp.float32)
+
+    with jax.disable_jit():
+        y_fine = log_ode(
+            primitive,
+            y0,
+            bracket_functions=bracket_functions,
+            solver=diffrax.Heun(),
+            rtol=1e-6,
+            atol=1e-7,
+        )
+        y_coarse = log_ode(
+            primitive,
+            y0,
+            bracket_functions=bracket_functions,
+            solver=diffrax.Heun(),
+            rtol=5e-5,
+            atol=5e-6,
+        )
+
+    assert jnp.all(jnp.isfinite(y_fine))
+    assert jnp.allclose(y_fine, y_coarse, rtol=5e-4, atol=5e-5)

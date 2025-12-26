@@ -6,8 +6,8 @@ from jax.scipy.linalg import expm as jexpm
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
-from stochastax.integrators.log_ode import log_ode
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
+from stochastax.integrators.log_ode import log_ode, log_ode_homogeneous
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift, form_mkw_bracket_functions
 from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 
 from tests.conftest import _so3_generators
@@ -44,7 +44,7 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     )
     logsig = sig.log()
 
-    y_next = log_ode(mkw_brackets, logsig, y0)
+    y_next = log_ode_homogeneous(mkw_brackets, logsig, y0)
     combined_generator = jnp.sum(generators, axis=0)
     expected = jexpm(delta * combined_generator) @ y0
     expected = expected / jnp.linalg.norm(expected)
@@ -78,10 +78,88 @@ def test_mkw_log_ode_euclidean(
     )
     logsig = sig.log()
 
-    y_next = log_ode(mkw_brackets, logsig, euclidean_initial_state)
+    y_next = log_ode_homogeneous(mkw_brackets, logsig, euclidean_initial_state)
     expected = jexpm(delta * rotation_matrix_2d) @ euclidean_initial_state
     expected = expected / jnp.linalg.norm(euclidean_initial_state)
     assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
+
+
+def test_mkw_log_ode_state_dependent_matches_linear_homogeneous() -> None:
+    """Callable MKW bracket functions match homogeneous path for linear fields."""
+    depth = 1
+    dim = 2
+    delta = 0.1
+
+    hopf = MKWHopfAlgebra.build(dim, depth)
+    generators = build_block_rotation_generators(dim)
+    vector_fields = _linear_vector_fields(generators)
+    bracket_functions = form_mkw_bracket_functions(vector_fields, hopf, lambda _, v: v)
+    base_point = build_block_initial_state(dim)
+    bracket_mats = form_mkw_lift(vector_fields, base_point, hopf, lambda _, v: v)
+
+    path = build_two_point_path(delta, dim)
+    steps = path.shape[0] - 1
+    cov = jnp.zeros((steps, dim, dim), dtype=jnp.float32)
+    sig = compute_planar_branched_signature(
+        path=path,
+        depth=depth,
+        hopf=hopf,
+        mode="full",
+        cov_increments=cov,
+    )
+    logsig = sig.log()
+
+    y0 = build_block_initial_state(dim)
+
+    with jax.disable_jit():
+        y_fun = log_ode(logsig, y0, bracket_functions=bracket_functions)
+    y_mat = log_ode_homogeneous(bracket_mats, logsig, y0)
+
+    assert jnp.allclose(y_fun, y_mat, rtol=1e-5, atol=1e-6)
+
+
+def test_mkw_log_ode_state_dependent_nonlinear_consistency() -> None:
+    """Nonlinear MKW bracket functions integrate consistently."""
+    depth = 1
+    dim = 2
+    delta = 0.07
+
+    hopf = MKWHopfAlgebra.build(dim, depth)
+
+    def vf0(y: jax.Array) -> jax.Array:
+        return jnp.tanh(y) + 0.05 * y**2
+
+    def vf1(y: jax.Array) -> jax.Array:
+        return jnp.sin(y) + 0.1 * y
+
+    vector_fields = [vf0, vf1]
+    bracket_functions = form_mkw_bracket_functions(vector_fields, hopf, lambda _, v: v)
+    base_point = build_block_initial_state(dim)
+    bracket_mats = form_mkw_lift(vector_fields, base_point, hopf, lambda _, v: v)
+
+    path = build_two_point_path(delta, dim)
+    cov = jnp.zeros((1, dim, dim), dtype=jnp.float32)
+    sig = compute_planar_branched_signature(
+        path=path,
+        depth=depth,
+        hopf=hopf,
+        mode="full",
+        cov_increments=cov,
+    )
+    logsig = sig.log()
+
+    y0 = build_block_initial_state(dim)
+
+    with jax.disable_jit():
+        y_fine = log_ode(logsig, y0, bracket_functions=bracket_functions, rtol=1e-6, atol=1e-7)
+        y_coarse = log_ode(logsig, y0, bracket_functions=bracket_functions, rtol=5e-5, atol=5e-6)
+
+    # Also ensure matrix path runs (consistency check; not necessarily equal for nonlinear fields)
+    y_mat = log_ode_homogeneous(bracket_mats, logsig, y0)
+
+    assert jnp.all(jnp.isfinite(y_fine))
+    assert jnp.allclose(y_fine, y_coarse, rtol=5e-4, atol=5e-5)
+    assert jnp.all(jnp.isfinite(y_mat))
 
 
 @pytest.mark.parametrize("depth", [1, 2])
@@ -138,7 +216,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     dim = 3
 
     hopf = MKWHopfAlgebra.build(dim, depth)
-    mkw_brackets = form_mkw_lift(V, y0, hopf, _project_to_tangent)
+    mkw_bracket_functions = form_mkw_bracket_functions(V, hopf, _project_to_tangent)
 
     key = jax.random.PRNGKey(4)
     timesteps = 1000
@@ -163,7 +241,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
             index_start=int(w.interval[0]),
         )
         logsig = sig.log()
-        state = log_ode(mkw_brackets, logsig, state)
+        state = log_ode(logsig, state, bracket_functions=mkw_bracket_functions)
         traj.append(state)
     trajectory = jnp.stack(traj, axis=0)
 
@@ -197,7 +275,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
                 index_start=i,
             )
             logsig = sig.log()
-            state = log_ode(mkw_brackets, logsig, state)
+            state = log_ode(logsig, state, bracket_functions=mkw_bracket_functions)
         return state
 
     yT_small = jax.vmap(integrate_short, in_axes=0)(dW_small)
