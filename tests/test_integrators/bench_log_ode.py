@@ -20,7 +20,7 @@ from tests.test_integrators.conftest import (
 )
 
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
-from stochastax.integrators.log_ode import log_ode
+from stochastax.integrators.log_ode import log_ode_homogeneous
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.control_lifts.log_signature import compute_log_signature
 
@@ -57,7 +57,7 @@ def test_log_ode_benchmark_standard_stepwise(
         def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
             seg = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
             primitive = compute_log_signature(seg, depth, local_hopf, "Lyndon words", mode="full")
-            y_next = log_ode(brackets, primitive, carry)
+            y_next = log_ode_homogeneous(brackets, primitive, carry)
             return y_next, None
 
         y_final, _ = jax.lax.scan(step, y_init, path_increments)
@@ -92,7 +92,7 @@ def test_log_ode_benchmark_manifold_stepwise(
         def step(carry: jax.Array, inc: jax.Array) -> tuple[jax.Array, None]:
             seg_W = jnp.vstack([jnp.zeros((1, dim), dtype=inc.dtype), inc.reshape(1, -1)])
             primitive = compute_log_signature(seg_W, depth, local_hopf, "Lyndon words", mode="full")
-            y_next = log_ode(bracket_basis, primitive, carry)
+            y_next = log_ode_homogeneous(bracket_basis, primitive, carry)
             return y_next, None
 
         y_final, _ = jax.lax.scan(step, y_init, path_increments)
@@ -142,7 +142,7 @@ def test_bck_log_ode_benchmark_stepwise(
                 cov_increments=cov,
             )
             logsig = signature.log()
-            y_next = log_ode(bck_brackets, logsig, carry)
+            y_next = log_ode_homogeneous(bck_brackets, logsig, carry)
             return y_next, None
 
         y_final, _ = jax.lax.scan(step, y_init, path_increments)
@@ -185,7 +185,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
                 cov_increments=cov,
             )
             logsig = signature.log()
-            y_next = log_ode(mkw_brackets, logsig, carry)
+            y_next = log_ode_homogeneous(mkw_brackets, logsig, carry)
             return y_next, None
 
         y_final, _ = jax.lax.scan(step, y_init, path_increments)

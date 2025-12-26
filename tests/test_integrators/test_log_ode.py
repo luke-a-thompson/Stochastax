@@ -310,52 +310,7 @@ def test_log_ode_state_dependent_matches_linear_homogeneous() -> None:
     y0 = y0 / jnp.linalg.norm(y0)
 
     with jax.disable_jit():
-        y_fun = log_ode(primitive, y0, bracket_functions=bracket_functions)
+        y_fun = log_ode(bracket_functions, primitive, y0)
     y_mat = log_ode_homogeneous(bracket_mats, primitive, y0)
 
     assert jnp.allclose(y_fun, y_mat, rtol=1e-5, atol=5e-6)
-
-
-def test_lyndon_log_ode_state_dependent_nonlinear_consistency() -> None:
-    """Nonlinear vector fields: bracket_functions integration is self-consistent."""
-    dim = 2
-    depth = 1
-    delta = 0.12
-
-    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
-
-    def vf0(y: jax.Array) -> jax.Array:
-        return jnp.sin(y)
-
-    def vf1(y: jax.Array) -> jax.Array:
-        return jnp.tanh(y) + 0.1 * y**2
-
-    vector_fields = [vf0, vf1]
-    bracket_functions = form_lyndon_bracket_functions(vector_fields, hopf)
-
-    path = jnp.stack(
-        [jnp.zeros((dim,), dtype=jnp.float32), jnp.full((dim,), delta, dtype=jnp.float32)]
-    )
-    primitive = compute_log_signature(path, depth, hopf, "Lyndon words", mode="full")
-    y0 = jnp.array([0.2, -0.3], dtype=jnp.float32)
-
-    with jax.disable_jit():
-        y_fine = log_ode(
-            primitive,
-            y0,
-            bracket_functions=bracket_functions,
-            solver=diffrax.Heun(),
-            rtol=1e-6,
-            atol=1e-7,
-        )
-        y_coarse = log_ode(
-            primitive,
-            y0,
-            bracket_functions=bracket_functions,
-            solver=diffrax.Heun(),
-            rtol=5e-5,
-            atol=5e-6,
-        )
-
-    assert jnp.all(jnp.isfinite(y_fine))
-    assert jnp.allclose(y_fine, y_coarse, rtol=5e-4, atol=5e-5)

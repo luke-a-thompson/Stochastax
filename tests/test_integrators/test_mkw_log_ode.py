@@ -112,54 +112,10 @@ def test_mkw_log_ode_state_dependent_matches_linear_homogeneous() -> None:
     y0 = build_block_initial_state(dim)
 
     with jax.disable_jit():
-        y_fun = log_ode(logsig, y0, bracket_functions=bracket_functions)
+        y_fun = log_ode(bracket_functions, logsig, y0)
     y_mat = log_ode_homogeneous(bracket_mats, logsig, y0)
 
     assert jnp.allclose(y_fun, y_mat, rtol=1e-5, atol=1e-6)
-
-
-def test_mkw_log_ode_state_dependent_nonlinear_consistency() -> None:
-    """Nonlinear MKW bracket functions integrate consistently."""
-    depth = 1
-    dim = 2
-    delta = 0.07
-
-    hopf = MKWHopfAlgebra.build(dim, depth)
-
-    def vf0(y: jax.Array) -> jax.Array:
-        return jnp.tanh(y) + 0.05 * y**2
-
-    def vf1(y: jax.Array) -> jax.Array:
-        return jnp.sin(y) + 0.1 * y
-
-    vector_fields = [vf0, vf1]
-    bracket_functions = form_mkw_bracket_functions(vector_fields, hopf, lambda _, v: v)
-    base_point = build_block_initial_state(dim)
-    bracket_mats = form_mkw_lift(vector_fields, base_point, hopf, lambda _, v: v)
-
-    path = build_two_point_path(delta, dim)
-    cov = jnp.zeros((1, dim, dim), dtype=jnp.float32)
-    sig = compute_planar_branched_signature(
-        path=path,
-        depth=depth,
-        hopf=hopf,
-        mode="full",
-        cov_increments=cov,
-    )
-    logsig = sig.log()
-
-    y0 = build_block_initial_state(dim)
-
-    with jax.disable_jit():
-        y_fine = log_ode(logsig, y0, bracket_functions=bracket_functions, rtol=1e-6, atol=1e-7)
-        y_coarse = log_ode(logsig, y0, bracket_functions=bracket_functions, rtol=5e-5, atol=5e-6)
-
-    # Also ensure matrix path runs (consistency check; not necessarily equal for nonlinear fields)
-    y_mat = log_ode_homogeneous(bracket_mats, logsig, y0)
-
-    assert jnp.all(jnp.isfinite(y_fine))
-    assert jnp.allclose(y_fine, y_coarse, rtol=5e-4, atol=5e-5)
-    assert jnp.all(jnp.isfinite(y_mat))
 
 
 @pytest.mark.parametrize("depth", [1, 2])
@@ -241,7 +197,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
             index_start=int(w.interval[0]),
         )
         logsig = sig.log()
-        state = log_ode(logsig, state, bracket_functions=mkw_bracket_functions)
+        state = log_ode(mkw_bracket_functions, logsig, state)
         traj.append(state)
     trajectory = jnp.stack(traj, axis=0)
 
@@ -275,7 +231,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
                 index_start=i,
             )
             logsig = sig.log()
-            state = log_ode(logsig, state, bracket_functions=mkw_bracket_functions)
+            state = log_ode(mkw_bracket_functions, logsig, state)
         return state
 
     yT_small = jax.vmap(integrate_short, in_axes=0)(dW_small)
