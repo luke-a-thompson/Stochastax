@@ -4,36 +4,32 @@ import numpy as np
 from typing import Callable, Optional
 
 from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
-from stochastax.vector_field_lifts.vector_field_lift_types import MKWBrackets
+from stochastax.vector_field_lifts.vector_field_lift_types import (
+    MKWBrackets,
+    MKWBracketFunctions,
+)
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 
 
-def form_mkw_lift(
+def form_mkw_bracket_functions(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
-    base_point: jax.Array,
     hopf: MKWHopfAlgebra,
     project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array],
-) -> MKWBrackets:
+) -> MKWBracketFunctions:
     """
-    Build nonlinear MKW brackets (planar rooted forests) evaluated at a base point.
+    Build callable MKW bracket vector fields V_w(y) (planar rooted forests).
 
     Args:
         vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
             vector field per driver dimension.
-        base_point: base point where the MKW elementary differentials' Jacobians are
-            evaluated.
         hopf: Hopf algebra containing the planar forests metadata via
             ``MKWHopfAlgebra.build``.
         project_to_tangent: projection map enforcing tangent dynamics on a manifold;
             typically identity in the Euclidean case.
 
     Returns:
-        List storing [num_shapes_k * d^(k+1), n, n] Jacobians per forest degree
-        (degree k+1), where num_shapes_k is the number of distinct planar forest
-        shapes with k+1 nodes and d is the number of driver vector fields.
+        Per-degree list of callable bracket functions.
     """
-    if base_point.ndim != 1:
-        raise ValueError(f"base_point must be a 1D array [n], got shape {base_point.shape}")
     forests_by_degree = hopf.forests_by_degree
     if len(vector_fields) != hopf.ambient_dimension:
         raise ValueError(
@@ -55,9 +51,8 @@ def form_mkw_lift(
         )
 
     d = hopf.ambient_dimension
-    n_state = int(base_point.shape[0])
 
-    results_by_degree: list[jax.Array] = []
+    bracket_fns_by_degree: list[list[Callable[[jax.Array], jax.Array]]] = []
 
     for degree_idx, forest in enumerate(forests_by_degree):
         parents = np.asarray(forest.parent)
@@ -77,7 +72,7 @@ def form_mkw_lift(
                     f"Hopf expects {expected_count} basis elements at level {degree_idx}, "
                     "but no forest shapes were provided."
                 )
-            results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
+            bracket_fns_by_degree.append([])
             continue
 
         children_table = hopf.children_by_degree[degree_idx]
@@ -88,7 +83,7 @@ def form_mkw_lift(
         eval_order_np = np.asarray(eval_order_table)
 
         num_colours = d**n_nodes
-        level_mats: list[jax.Array] = []
+        level_fns: list[Callable[[jax.Array], jax.Array]] = []
 
         for shape_id in range(num_shapes):
             parent_row = list(map(int, parents[shape_id].tolist()))
@@ -151,21 +146,98 @@ def form_mkw_lift(
 
             for colour_index in range(num_colours):
                 colours = unrank_base_d(colour_index, n_nodes, d)
-                F_root_fn = build_node_function(colours)
-                J = jax.jacrev(F_root_fn)(base_point)
-                level_mats.append(J)
+                F_root_fn = jax.jit(build_node_function(colours))
+                level_fns.append(F_root_fn)
 
-        if len(level_mats) != expected_count:
+        if len(level_fns) != expected_count:
             raise ValueError(
-                f"Constructed {len(level_mats)} MKW brackets at level {degree_idx}, "
+                f"Constructed {len(level_fns)} MKW bracket functions at level {degree_idx}, "
                 f"but hopf.basis_size reports {expected_count}."
             )
 
-        out = (
-            jnp.zeros((0, n_state, n_state), dtype=base_point.dtype)
-            if len(level_mats) == 0
-            else jnp.stack(level_mats, axis=0)
+        bracket_fns_by_degree.append(level_fns)
+
+    return MKWBracketFunctions(bracket_fns_by_degree)
+
+
+def form_mkw_lift(
+    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    base_point: jax.Array,
+    hopf: MKWHopfAlgebra,
+    project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array],
+) -> MKWBrackets:
+    """
+    Build nonlinear MKW brackets (planar rooted forests) evaluated at a base point.
+
+    Args:
+        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
+            vector field per driver dimension.
+        base_point: base point where the MKW elementary differentials' Jacobians are
+            evaluated.
+        hopf: Hopf algebra containing the planar forests metadata via
+            ``MKWHopfAlgebra.build``.
+        project_to_tangent: projection map enforcing tangent dynamics on a manifold;
+            typically identity in the Euclidean case.
+
+    Returns:
+        List storing [num_shapes_k * d^(k+1), n, n] Jacobians per forest degree
+        (degree k+1), where num_shapes_k is the number of distinct planar forest
+        shapes with k+1 nodes and d is the number of driver vector fields.
+    """
+    if base_point.ndim != 1:
+        raise ValueError(f"base_point must be a 1D array [n], got shape {base_point.shape}")
+    forests_by_degree = hopf.forests_by_degree
+    if len(vector_fields) != hopf.ambient_dimension:
+        raise ValueError(
+            "Number of vector fields must equal hopf.ambient_dimension "
+            f"({len(vector_fields)} != {hopf.ambient_dimension})."
         )
-        results_by_degree.append(out)
+    if not forests_by_degree:
+        raise ValueError(
+            "MKWHopfAlgebra instance does not contain any forests. Ensure it "
+            "was constructed via MKWHopfAlgebra.build."
+        )
+    if (
+        not hopf.children_by_degree
+        or not hopf.child_counts_by_degree
+        or not hopf.eval_order_by_degree
+    ):
+        raise ValueError(
+            "MKWHopfAlgebra is missing cached children metadata. Rebuild via MKWHopfAlgebra.build()."
+        )
+
+    d = hopf.ambient_dimension
+    n_state = int(base_point.shape[0])
+
+    bracket_functions = form_mkw_bracket_functions(
+        vector_fields=vector_fields,
+        hopf=hopf,
+        project_to_tangent=project_to_tangent,
+    )
+
+    results_by_degree: list[jax.Array] = []
+
+    for degree_idx, funcs_level in enumerate(bracket_functions):
+        expected_count = hopf.basis_size(degree_idx)
+        if len(funcs_level) != expected_count:
+            raise ValueError(
+                f"Constructed {len(funcs_level)} MKW bracket functions at level {degree_idx}, "
+                f"but hopf.basis_size reports {expected_count}."
+            )
+        if expected_count == 0:
+            results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
+            continue
+
+        level_funcs = tuple(funcs_level)
+
+        def eval_level(
+            y: jax.Array,
+            funcs: tuple[Callable[[jax.Array], jax.Array], ...] = level_funcs,
+        ) -> jax.Array:
+            vals = [fn(y) for fn in funcs]
+            return jnp.stack(vals, axis=0)
+
+        level_jac = jax.jacfwd(eval_level)(base_point)
+        results_by_degree.append(level_jac)
 
     return MKWBrackets(results_by_degree)

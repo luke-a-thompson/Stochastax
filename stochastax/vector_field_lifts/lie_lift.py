@@ -3,7 +3,10 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
-from stochastax.vector_field_lifts.vector_field_lift_types import LyndonBrackets
+from stochastax.vector_field_lifts.vector_field_lift_types import (
+    LyndonBrackets,
+    LyndonBracketFunctions,
+)
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.hopf_algebras.free_lie import (
     build_lyndon_dependency_tables,
@@ -81,6 +84,108 @@ def form_lyndon_brackets_from_words(
     return LyndonBrackets(all_brackets)
 
 
+def form_lyndon_bracket_functions(
+    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    hopf: ShuffleHopfAlgebra,
+    project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
+) -> LyndonBracketFunctions:
+    """
+    Build callable Lyndon bracket vector fields V_w(y).
+
+    Args:
+        vector_fields: driver vector fields f_i: R^n -> R^n
+        hopf: ShuffleHopfAlgebra with cached Lyndon metadata (cache_lyndon_basis=True)
+        project_to_tangent: optional projector to enforce manifold tangency
+
+    Returns:
+        Nested lists: level k contains callables for Lyndon words of length k+1.
+    """
+    if len(vector_fields) != hopf.ambient_dimension:
+        raise ValueError(
+            "Number of vector fields must equal hopf.ambient_dimension "
+            f"({len(vector_fields)} != {hopf.ambient_dimension})."
+        )
+    projector = project_to_tangent or (lambda _y, v: v)
+
+    cached_words = hopf.lyndon_basis_by_degree
+    prefix_level_by_degree = hopf.lyndon_prefix_level_by_degree
+    prefix_index_by_degree = hopf.lyndon_prefix_index_by_degree
+    suffix_level_by_degree = hopf.lyndon_suffix_level_by_degree
+    suffix_index_by_degree = hopf.lyndon_suffix_index_by_degree
+    if not cached_words:
+        raise ValueError(
+            "ShuffleHopfAlgebra must be constructed via ShuffleHopfAlgebra.build "
+            "with cache_lyndon_basis=True to use form_lyndon_bracket_functions."
+        )
+    if not (
+        len(cached_words)
+        == len(prefix_level_by_degree)
+        == len(prefix_index_by_degree)
+        == len(suffix_level_by_degree)
+        == len(suffix_index_by_degree)
+    ):
+        raise ValueError("ShuffleHopfAlgebra Lyndon caches are inconsistent.")
+
+    bracket_fns: list[list[Callable[[jax.Array], jax.Array]]] = []
+
+    for level_idx, words_level in enumerate(cached_words):
+        words_np = np.asarray(words_level)
+        num_words = int(words_np.shape[0]) if words_np.ndim > 0 else 0
+        funcs_level: list[Callable[[jax.Array], jax.Array]] = []
+
+        if num_words == 0:
+            bracket_fns.append(funcs_level)
+            continue
+
+        if level_idx == 0:
+            for word in words_np:
+                letter = int(word[0])
+
+                def make_leaf(index: int) -> Callable[[jax.Array], jax.Array]:
+                    def leaf(y: jax.Array) -> jax.Array:
+                        return projector(y, vector_fields[index](y))
+
+                    return leaf
+
+                fn = jax.jit(make_leaf(letter))
+                funcs_level.append(fn)
+        else:
+            prefix_levels = np.asarray(prefix_level_by_degree[level_idx])
+            prefix_indices = np.asarray(prefix_index_by_degree[level_idx])
+            suffix_levels = np.asarray(suffix_level_by_degree[level_idx])
+            suffix_indices = np.asarray(suffix_index_by_degree[level_idx])
+
+            for word_idx in range(num_words):
+                prefix_level = int(prefix_levels[word_idx])
+                prefix_index = int(prefix_indices[word_idx])
+                suffix_level = int(suffix_levels[word_idx])
+                suffix_index = int(suffix_indices[word_idx])
+                if prefix_level < 0 or suffix_level < 0:
+                    raise ValueError("Invalid Lyndon prefix/suffix metadata encountered.")
+                prefix_fn = bracket_fns[prefix_level][prefix_index]
+                suffix_fn = bracket_fns[suffix_level][suffix_index]
+
+                def make_bracket(
+                    f_left: Callable[[jax.Array], jax.Array],
+                    f_right: Callable[[jax.Array], jax.Array],
+                ) -> Callable[[jax.Array], jax.Array]:
+                    def bracket(y: jax.Array) -> jax.Array:
+                        left_val = f_left(y)
+                        right_val = f_right(y)
+                        left_push = jax.jvp(f_left, (y,), (right_val,))[1]
+                        right_push = jax.jvp(f_right, (y,), (left_val,))[1]
+                        return projector(y, left_push - right_push)
+
+                    return bracket
+
+                fn = jax.jit(make_bracket(prefix_fn, suffix_fn))
+                funcs_level.append(fn)
+
+        bracket_fns.append(funcs_level)
+
+    return LyndonBracketFunctions(bracket_fns)
+
+
 def form_lyndon_lift(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
@@ -113,88 +218,28 @@ def form_lyndon_lift(
     projector = project_to_tangent or (lambda _y, v: v)
     n_state = int(base_point.shape[0])
 
-    cached_words = hopf.lyndon_basis_by_degree
-    prefix_level_by_degree = hopf.lyndon_prefix_level_by_degree
-    prefix_index_by_degree = hopf.lyndon_prefix_index_by_degree
-    suffix_level_by_degree = hopf.lyndon_suffix_level_by_degree
-    suffix_index_by_degree = hopf.lyndon_suffix_index_by_degree
-    if not cached_words:
-        raise ValueError(
-            "ShuffleHopfAlgebra must be constructed via ShuffleHopfAlgebra.build "
-            "with cache_lyndon_basis=True to use form_lyndon_lift."
-        )
-    if not (
-        len(cached_words)
-        == len(prefix_level_by_degree)
-        == len(prefix_index_by_degree)
-        == len(suffix_level_by_degree)
-        == len(suffix_index_by_degree)
-    ):
-        raise ValueError("ShuffleHopfAlgebra Lyndon caches are inconsistent.")
-
-    vector_field_funcs: list[list[Callable[[jax.Array], jax.Array]]] = []
-
-    for level_idx, words_level in enumerate(cached_words):
-        words_np = np.asarray(words_level)
-        num_words = int(words_np.shape[0])
-        funcs_level: list[Callable[[jax.Array], jax.Array]] = []
-
-        if num_words == 0:
-            vector_field_funcs.append(funcs_level)
-            continue
-
-        if level_idx == 0:
-            for word in words_np:
-                letter = int(word[0])
-
-                def make_leaf(index: int) -> Callable[[jax.Array], jax.Array]:
-                    def leaf(y: jax.Array) -> jax.Array:
-                        return projector(y, vector_fields[index](y))
-
-                    return leaf
-
-                fn = jax.jit(make_leaf(letter))
-                funcs_level.append(fn)
-        else:
-            prefix_levels = np.asarray(prefix_level_by_degree[level_idx])
-            prefix_indices = np.asarray(prefix_index_by_degree[level_idx])
-            suffix_levels = np.asarray(suffix_level_by_degree[level_idx])
-            suffix_indices = np.asarray(suffix_index_by_degree[level_idx])
-
-            for word_idx in range(num_words):
-                prefix_level = int(prefix_levels[word_idx])
-                prefix_index = int(prefix_indices[word_idx])
-                suffix_level = int(suffix_levels[word_idx])
-                suffix_index = int(suffix_indices[word_idx])
-                if prefix_level < 0 or suffix_level < 0:
-                    raise ValueError("Invalid Lyndon prefix/suffix metadata encountered.")
-                prefix_fn = vector_field_funcs[prefix_level][prefix_index]
-                suffix_fn = vector_field_funcs[suffix_level][suffix_index]
-
-                def make_bracket(
-                    f_left: Callable[[jax.Array], jax.Array],
-                    f_right: Callable[[jax.Array], jax.Array],
-                ) -> Callable[[jax.Array], jax.Array]:
-                    def bracket(y: jax.Array) -> jax.Array:
-                        left_val = f_left(y)
-                        right_val = f_right(y)
-                        left_push = jax.jvp(f_left, (y,), (right_val,))[1]
-                        right_push = jax.jvp(f_right, (y,), (left_val,))[1]
-                        return projector(y, left_push - right_push)
-
-                    return bracket
-
-                fn = jax.jit(make_bracket(prefix_fn, suffix_fn))
-                funcs_level.append(fn)
-
-        vector_field_funcs.append(funcs_level)
+    vector_field_funcs = form_lyndon_bracket_functions(
+        vector_fields=vector_fields,
+        hopf=hopf,
+        project_to_tangent=projector,
+    )
 
     brackets_by_len: list[jax.Array] = []
     for funcs_level in vector_field_funcs:
         if not funcs_level:
             brackets_by_len.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
             continue
-        mats = [jax.jacrev(fn)(base_point) for fn in funcs_level]
-        brackets_by_len.append(jnp.stack(mats, axis=0))
+
+        level_funcs = tuple(funcs_level)
+
+        def eval_level(
+            y: jax.Array,
+            funcs: tuple[Callable[[jax.Array], jax.Array], ...] = level_funcs,
+        ) -> jax.Array:
+            vals = [fn(y) for fn in funcs]
+            return jnp.stack(vals, axis=0)
+
+        level_jac = jax.jacfwd(eval_level)(base_point)
+        brackets_by_len.append(level_jac)
 
     return LyndonBrackets(brackets_by_len)
