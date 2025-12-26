@@ -8,7 +8,6 @@ def commutator(a: jax.Array, b: jax.Array) -> jax.Array:
     return a @ b - b @ a
 
 
-# @partial(jax.jit, static_argnames=["depth", "dim"])
 def enumerate_lyndon_basis(depth: int, dim: int) -> list[jax.Array]:
     """Duval's generator. Generates lists of words (integer sequences) for each level up to a specified depth.
     These words typically correspond to the Lyndon word basis.

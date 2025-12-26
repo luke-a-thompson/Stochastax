@@ -49,4 +49,3 @@ def log_ode(
     polynomial = form_lie_series(W_flat, primitive_signature.coeffs)
     exp_polynomial = jexpm(polynomial)
     return (exp_polynomial @ curr_state) / jnp.linalg.norm(curr_state)
-
