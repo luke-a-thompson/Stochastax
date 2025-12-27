@@ -36,6 +36,7 @@ from .vector_field_lift_types import (
     MKWBrackets,
     VectorFieldBrackets,
     VectorFieldLift,
+    VectorFieldBracketFunctionLift,
 )
 
 __all__ = [
@@ -53,4 +54,5 @@ __all__ = [
     "MKWBrackets",
     "VectorFieldBrackets",
     "VectorFieldLift",
+    "VectorFieldBracketFunctionLift",
 ]
