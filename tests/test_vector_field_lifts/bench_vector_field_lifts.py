@@ -10,11 +10,11 @@ from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
 from tests.conftest import BENCH_GL_CASES, BENCH_MKW_CASES, BENCH_SHUFFLE_CASES, _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    _project_to_tangent,
     benchmark_wrapper,
     build_block_rotation_generators,
 )
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.manifolds import Sphere
 
 
 @pytest.mark.benchmark(group="lyndon_lift")
@@ -89,7 +89,7 @@ def test_mkw_lift_benchmark_so3_manifold(
     vector_fields = _linear_vector_fields(A)
     base_point = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
-    compiled = jax.jit(lambda y: form_mkw_lift(vector_fields, y, hopf, _project_to_tangent))
+    compiled = jax.jit(lambda y: form_mkw_lift(vector_fields, y, hopf, Sphere()))
     brackets = benchmark_wrapper(benchmark, compiled, base_point)
 
     # Keep this a real test with light sanity checks.

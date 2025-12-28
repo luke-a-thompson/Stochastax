@@ -8,7 +8,6 @@ from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
 from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    _project_to_tangent,
     benchmark_wrapper,
     build_deterministic_increments,
     build_block_rotation_generators,
@@ -23,6 +22,7 @@ from stochastax.control_lifts.branched_signature_ito import compute_planar_branc
 from stochastax.integrators.log_ode import log_ode_homogeneous
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.control_lifts.log_signature import compute_log_signature
+from stochastax.manifolds import Sphere
 
 LOG_ODE_STANDARD_BENCH_CASES: list = [
     pytest.param(1, 1, 12, id="depth-1-dim-1-step-12"),
@@ -169,7 +169,7 @@ def test_mkw_log_ode_benchmark_manifold_stepwise(
     hopf = MKWHopfAlgebra.build(dim, depth)
     vector_fields = _linear_vector_fields(A)
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, _project_to_tangent)
+    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, Sphere())
     increments = build_deterministic_increments(dim, steps, seed=depth + steps, scale=0.03)
 
     @jax.jit

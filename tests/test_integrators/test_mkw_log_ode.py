@@ -9,11 +9,11 @@ from stochastax.control_lifts.branched_signature_ito import compute_planar_branc
 from stochastax.integrators.log_ode import log_ode, log_ode_homogeneous
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift, form_mkw_bracket_functions
 from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
+from stochastax.manifolds import EuclideanSpace, Sphere
 
 from tests.conftest import _so3_generators
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    _project_to_tangent,
     build_block_rotation_generators,
     build_block_initial_state,
     build_two_point_path,
@@ -30,7 +30,7 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
-    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, lambda _, v: v)
+    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, EuclideanSpace())
 
     path = build_two_point_path(delta, dim)
     steps = path.shape[0] - 1
@@ -64,7 +64,7 @@ def test_mkw_log_ode_euclidean(
         _linear_vector_fields(A),
         euclidean_initial_state,
         hopf,
-        lambda _, v: v,
+        EuclideanSpace(),
     )
 
     path = jnp.array([[0.0], [delta]], dtype=jnp.float32)
@@ -93,9 +93,9 @@ def test_mkw_log_ode_state_dependent_matches_linear_homogeneous() -> None:
     hopf = MKWHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
-    bracket_functions = form_mkw_bracket_functions(vector_fields, hopf, lambda _, v: v)
+    bracket_functions = form_mkw_bracket_functions(vector_fields, hopf, EuclideanSpace())
     base_point = build_block_initial_state(dim)
-    bracket_mats = form_mkw_lift(vector_fields, base_point, hopf, lambda _, v: v)
+    bracket_mats = form_mkw_lift(vector_fields, base_point, hopf, EuclideanSpace())
 
     path = build_two_point_path(delta, dim)
     steps = path.shape[0] - 1
@@ -172,7 +172,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     dim = 3
 
     hopf = MKWHopfAlgebra.build(dim, depth)
-    mkw_bracket_functions = form_mkw_bracket_functions(V, hopf, _project_to_tangent)
+    mkw_bracket_functions = form_mkw_bracket_functions(V, hopf, Sphere())
 
     key = jax.random.PRNGKey(4)
     timesteps = 1000
@@ -197,7 +197,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
             index_start=int(w.interval[0]),
         )
         logsig = sig.log()
-        state = log_ode(mkw_bracket_functions, logsig, state)
+        state = log_ode(mkw_bracket_functions, logsig, state, Sphere())
         traj.append(state)
     trajectory = jnp.stack(traj, axis=0)
 
@@ -231,7 +231,7 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
                 index_start=i,
             )
             logsig = sig.log()
-            state = log_ode(mkw_bracket_functions, logsig, state)
+            state = log_ode(mkw_bracket_functions, logsig, state, Sphere())
         return state
 
     yT_small = jax.vmap(integrate_short, in_axes=0)(dW_small)
@@ -255,7 +255,7 @@ def test_form_mkw_lift_jittable() -> None:
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
 
-    compiled = jax.jit(lambda bp: form_mkw_lift(vector_fields, bp, hopf, lambda _, v: v))
+    compiled = jax.jit(lambda bp: form_mkw_lift(vector_fields, bp, hopf, EuclideanSpace()))
     brackets = compiled(y0)
 
     assert len(brackets) == depth

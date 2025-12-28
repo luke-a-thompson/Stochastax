@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
 import pytest
-import diffrax
 from typing import Callable
 from jax.scipy.linalg import expm as jexpm
 

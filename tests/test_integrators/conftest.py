@@ -23,6 +23,7 @@ from stochastax.vector_field_lifts.vector_field_lift_types import (
     MKWBrackets,
 )
 from stochastax.control_lifts.signature_types import MKWLogSignature
+from stochastax.manifolds import Sphere
 from typing import Callable
 from tests.conftest import _so3_generators
 
@@ -174,7 +175,7 @@ def build_mkw_log_ode_inputs(
     hopf = MKWHopfAlgebra.build(dim, depth)
     vector_fields = _linear_vector_fields(A)
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    brackets = form_mkw_lift(vector_fields, y0, hopf, _project_to_tangent)
+    brackets = form_mkw_lift(vector_fields, y0, hopf, Sphere())
 
     increments = build_deterministic_increments(dim, steps, seed, scale=0.03)
     origin = jnp.zeros((1, dim), dtype=jnp.float32)

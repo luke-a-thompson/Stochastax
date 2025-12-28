@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import pytest
 from jax.scipy.linalg import expm as jexpm
 
-import jax
 from stochastax.integrators.log_ode import log_ode, log_ode_homogeneous
 from stochastax.vector_field_lifts.bck_lift import form_bck_lift, form_bck_bracket_functions
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
