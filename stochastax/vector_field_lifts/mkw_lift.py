@@ -9,12 +9,13 @@ from stochastax.vector_field_lifts.vector_field_lift_types import (
     MKWBracketFunctions,
 )
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
+from stochastax.manifolds import Manifold, EuclideanSpace
 
 
 def form_mkw_bracket_functions(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     hopf: MKWHopfAlgebra,
-    project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array],
+    manifold: Manifold = EuclideanSpace(),
 ) -> MKWBracketFunctions:
     """
     Build callable MKW bracket vector fields V_w(y) (planar rooted forests).
@@ -104,7 +105,7 @@ def form_mkw_bracket_functions(
                     if num_children == 0:
 
                         def leaf_field(y: jax.Array, colour_idx: int = colour) -> jax.Array:
-                            return project_to_tangent(y, vector_fields[colour_idx](y))
+                            return manifold.project_to_tangent(y, vector_fields[colour_idx](y))
 
                         node_funcs[node_idx] = leaf_field
                         continue
@@ -124,14 +125,14 @@ def form_mkw_bracket_functions(
                     ) -> Callable[[jax.Array], jax.Array]:
                         def node_fn(y: jax.Array) -> jax.Array:
                             def g(z: jax.Array) -> jax.Array:
-                                return project_to_tangent(z, vector_fields[colour_idx](z))
+                                return manifold.project_to_tangent(z, vector_fields[colour_idx](z))
 
                             current = g
                             for cf in funcs:
 
                                 def g_next(z: jax.Array, g=current, cf=cf) -> jax.Array:
                                     _, dg_v = jax.jvp(g, (z,), (cf(z),))
-                                    return project_to_tangent(z, dg_v)
+                                    return manifold.project_to_tangent(z, dg_v)
 
                                 current = g_next
                             return current(y)
@@ -164,7 +165,7 @@ def form_mkw_lift(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
     hopf: MKWHopfAlgebra,
-    project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array],
+    manifold: Manifold = EuclideanSpace(),
 ) -> MKWBrackets:
     """
     Build nonlinear MKW brackets (planar rooted forests) evaluated at a base point.
@@ -176,8 +177,7 @@ def form_mkw_lift(
             evaluated.
         hopf: Hopf algebra containing the planar forests metadata via
             ``MKWHopfAlgebra.build``.
-        project_to_tangent: projection map enforcing tangent dynamics on a manifold;
-            typically identity in the Euclidean case.
+        manifold: manifold to project the vector fields onto the tangent space.
 
     Returns:
         List storing [num_shapes_k * d^(k+1), n, n] Jacobians per forest degree
@@ -212,7 +212,7 @@ def form_mkw_lift(
     bracket_functions = form_mkw_bracket_functions(
         vector_fields=vector_fields,
         hopf=hopf,
-        project_to_tangent=project_to_tangent,
+        manifold=manifold,
     )
 
     results_by_degree: list[jax.Array] = []

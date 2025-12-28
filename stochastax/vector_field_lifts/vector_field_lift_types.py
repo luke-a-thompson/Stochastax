@@ -16,7 +16,7 @@ import jax
 from typing import NewType, Protocol, Callable
 
 from stochastax.hopf_algebras.hopf_algebras import HopfAlgebraT
-from stochastax.manifolds.manifolds import Manifold, EuclideanSpace
+from stochastax.manifolds import Manifold, EuclideanSpace
 
 # Elementary differentials for Butcher/Lie-Butcher are kept as a single stacked array
 # because series formation code expects a flat concatenation contract.

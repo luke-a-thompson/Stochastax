@@ -12,6 +12,7 @@ from stochastax.hopf_algebras.free_lie import (
     build_lyndon_dependency_tables,
     commutator,
 )
+from stochastax.manifolds import Manifold, EuclideanSpace
 
 
 def form_lyndon_brackets_from_words(
@@ -87,7 +88,7 @@ def form_lyndon_brackets_from_words(
 def form_lyndon_bracket_functions(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     hopf: ShuffleHopfAlgebra,
-    project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
+    manifold: Manifold = EuclideanSpace(),
 ) -> LyndonBracketFunctions:
     """
     Build callable Lyndon bracket vector fields V_w(y).
@@ -105,7 +106,6 @@ def form_lyndon_bracket_functions(
             "Number of vector fields must equal hopf.ambient_dimension "
             f"({len(vector_fields)} != {hopf.ambient_dimension})."
         )
-    projector = project_to_tangent or (lambda _y, v: v)
 
     cached_words = hopf.lyndon_basis_by_degree
     prefix_level_by_degree = hopf.lyndon_prefix_level_by_degree
@@ -143,7 +143,7 @@ def form_lyndon_bracket_functions(
 
                 def make_leaf(index: int) -> Callable[[jax.Array], jax.Array]:
                     def leaf(y: jax.Array) -> jax.Array:
-                        return projector(y, vector_fields[index](y))
+                        return manifold.project_to_tangent(y, vector_fields[index](y))
 
                     return leaf
 
@@ -174,7 +174,7 @@ def form_lyndon_bracket_functions(
                         right_val = f_right(y)
                         left_push = jax.jvp(f_left, (y,), (right_val,))[1]
                         right_push = jax.jvp(f_right, (y,), (left_val,))[1]
-                        return projector(y, left_push - right_push)
+                        return manifold.project_to_tangent(y, left_push - right_push)
 
                     return bracket
 
@@ -190,7 +190,7 @@ def form_lyndon_lift(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     base_point: jax.Array,
     hopf: ShuffleHopfAlgebra,
-    project_to_tangent: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
+    manifold: Manifold = EuclideanSpace(),
 ) -> LyndonBrackets:
     """
     Build nonlinear (pre-Lie) Lyndon brackets evaluated at a base point.
@@ -201,8 +201,7 @@ def form_lyndon_lift(
         base_point: base point where the brackets' Jacobians are evaluated.
         hopf: Shuffle (tensor) Hopf algebra built with ``cache_lyndon_basis=True`` so
             Lyndon combinatorics can be reused by the lift.
-        project_to_tangent: optional projection map enforcing tangent dynamics on a
-            manifold (identity in the Euclidean case).
+        manifold: manifold to project the vector fields onto the tangent space.
 
     Returns:
         List storing [N_k, n, n] Jacobians per Lyndon level (degree k+1), where N_k is
@@ -215,13 +214,12 @@ def form_lyndon_lift(
             "Number of vector fields must equal hopf.ambient_dimension "
             f"({len(vector_fields)} != {hopf.ambient_dimension})."
         )
-    projector = project_to_tangent or (lambda _y, v: v)
     n_state = int(base_point.shape[0])
 
     vector_field_funcs = form_lyndon_bracket_functions(
         vector_fields=vector_fields,
         hopf=hopf,
-        project_to_tangent=projector,
+        manifold=manifold,
     )
 
     brackets_by_len: list[jax.Array] = []
