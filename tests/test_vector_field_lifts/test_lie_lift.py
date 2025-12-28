@@ -4,7 +4,7 @@ import numpy as np
 
 from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.free_lie import commutator
-from stochastax.vector_field_lifts import form_lyndon_brackets_from_words
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
 
 
 def test_form_lyndon_brackets_single_letter() -> None:

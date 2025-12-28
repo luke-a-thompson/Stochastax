@@ -11,7 +11,6 @@ from stochastax.vector_field_lifts.vector_field_lift_types import (
 from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 from stochastax.manifolds import Manifold, EuclideanSpace
 
-
 def form_mkw_bracket_functions(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
     hopf: MKWHopfAlgebra,
@@ -147,7 +146,7 @@ def form_mkw_bracket_functions(
 
             for colour_index in range(num_colours):
                 colours = unrank_base_d(colour_index, n_nodes, d)
-                F_root_fn = jax.jit(build_node_function(colours))
+                F_root_fn = build_node_function(colours)
                 level_fns.append(F_root_fn)
 
         if len(level_fns) != expected_count:

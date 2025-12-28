@@ -19,13 +19,15 @@ from .butcher import (
     form_lie_butcher_differentials,
 )
 from .lie_lift import (
-    form_lyndon_brackets_from_words,
+    form_lyndon_bracket_functions,
     form_lyndon_lift,
 )
 from .bck_lift import (
+    form_bck_bracket_functions,
     form_bck_lift,
 )
 from .mkw_lift import (
+    form_mkw_bracket_functions,
     form_mkw_lift,
 )
 from .vector_field_lift_types import (
@@ -40,9 +42,14 @@ from .vector_field_lift_types import (
 )
 
 __all__ = [
+    # Butcher differentials
     "form_butcher_differentials",
     "form_lie_butcher_differentials",
-    "form_lyndon_brackets_from_words",
+    # Function lifts
+    "form_lyndon_bracket_functions",
+    "form_bck_bracket_functions",
+    "form_mkw_bracket_functions",
+    # Jacobian lifts
     "form_lyndon_lift",
     "form_bck_lift",
     "form_mkw_lift",
