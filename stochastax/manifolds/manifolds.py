@@ -76,7 +76,7 @@ class Sphere(Manifold):
             Normalized point on unit sphere.
         """
         norm = jnp.linalg.norm(x, axis=-1, keepdims=True)
-        assert jnp.all(norm > 0), "Cannot normalize zero vector to sphere"
+        norm = jnp.maximum(norm, 1e-12)
         return x / norm
 
     def project_to_tangent(self, y: jax.Array, v: jax.Array) -> jax.Array:
