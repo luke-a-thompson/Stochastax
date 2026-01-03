@@ -8,8 +8,8 @@ from stochastax.vector_field_lifts.vector_field_lift_types import (
     MKWBrackets,
     MKWBracketFunctions,
 )
-from stochastax.vector_field_lifts.combinatorics import unrank_base_d
 from stochastax.manifolds import Manifold, EuclideanSpace
+
 
 def form_mkw_bracket_functions(
     vector_fields: list[Callable[[jax.Array], jax.Array]],
@@ -50,8 +50,6 @@ def form_mkw_bracket_functions(
             "MKWHopfAlgebra is missing cached children metadata. Rebuild via MKWHopfAlgebra.build()."
         )
 
-    d = hopf.ambient_dimension
-
     bracket_fns_by_degree: list[list[Callable[[jax.Array], jax.Array]]] = []
 
     for degree_idx, forest in enumerate(forests_by_degree):
@@ -82,7 +80,8 @@ def form_mkw_bracket_functions(
         child_counts_np = np.asarray(child_counts_table)
         eval_order_np = np.asarray(eval_order_table)
 
-        num_colours = d**n_nodes
+        colourings = hopf.colourings_by_degree[degree_idx]
+        num_colours = int(colourings.shape[0])
         level_fns: list[Callable[[jax.Array], jax.Array]] = []
 
         for shape_id in range(num_shapes):
@@ -94,12 +93,12 @@ def form_mkw_bracket_functions(
             eval_order = eval_order_np[shape_id]
 
             def build_node_function(
-                colours: list[int],
+                colours: np.ndarray,
             ) -> Callable[[jax.Array], jax.Array]:
                 node_funcs: list[Optional[Callable[[jax.Array], jax.Array]]] = [None] * n_nodes
                 for node_idx in eval_order:
                     node_idx = int(node_idx)
-                    colour = colours[node_idx]
+                    colour = int(colours[node_idx])
                     num_children = int(child_counts[node_idx])
                     if num_children == 0:
 
@@ -145,7 +144,7 @@ def form_mkw_bracket_functions(
                 return root_fn
 
             for colour_index in range(num_colours):
-                colours = unrank_base_d(colour_index, n_nodes, d)
+                colours = colourings[colour_index]
                 F_root_fn = build_node_function(colours)
                 level_fns.append(F_root_fn)
 
@@ -205,7 +204,6 @@ def form_mkw_lift(
             "MKWHopfAlgebra is missing cached children metadata. Rebuild via MKWHopfAlgebra.build()."
         )
 
-    d = hopf.ambient_dimension
     n_state = int(base_point.shape[0])
 
     bracket_functions = form_mkw_bracket_functions(

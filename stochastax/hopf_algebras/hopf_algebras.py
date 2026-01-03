@@ -12,6 +12,29 @@ from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
 from stochastax.hopf_algebras.forest_types import Forest, MKWForest, BCKForest
 
 
+def _build_colourings_by_degree(ambient_dim: int, depth: int) -> tuple[np.ndarray, ...]:
+    """Precompute node colourings for each degree.
+
+    For each level k (0-indexed, degree = k+1), returns an integer array of shape
+    [ambient_dim**(k+1), k+1] listing all base-ambient_dim digit expansions.
+    """
+    if depth <= 0:
+        return tuple()
+    out: list[np.ndarray] = []
+    base = int(ambient_dim)
+    for level in range(depth):
+        n_digits = level + 1
+        count = base**n_digits
+        idx = np.arange(count, dtype=np.int64)
+        digits = np.empty((count, n_digits), dtype=np.int32)
+        # Most-significant digit first.
+        for j in range(n_digits):
+            power = base ** (n_digits - 1 - j)
+            digits[:, j] = ((idx // power) % base).astype(np.int32)
+        out.append(digits)
+    return tuple(out)
+
+
 class HopfAlgebra(ABC):
     """Abstract Hopf algebra interface sufficient for signature/log-signature workflows."""
 
@@ -386,6 +409,7 @@ class GLHopfAlgebra(HopfAlgebra):
     children_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    colourings_by_degree: tuple[np.ndarray, ...] = field(default_factory=tuple)
 
     @override
     def basis_size(self, level: int | None = None) -> int:
@@ -437,6 +461,7 @@ class GLHopfAlgebra(HopfAlgebra):
             child_counts_tables,
             eval_orders_tables,
         ) = _build_children_eval_tables(forests)
+        colourings_by_degree = _build_colourings_by_degree(ambient_dim, len(forests))
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
@@ -446,6 +471,7 @@ class GLHopfAlgebra(HopfAlgebra):
             children_by_degree=children_tables,
             child_counts_by_degree=child_counts_tables,
             eval_order_by_degree=eval_orders_tables,
+            colourings_by_degree=colourings_by_degree,
         )
 
     @override
@@ -533,6 +559,7 @@ class MKWHopfAlgebra(HopfAlgebra):
     children_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
+    colourings_by_degree: tuple[np.ndarray, ...] = field(default_factory=tuple)
 
     @override
     def basis_size(self, level: int | None = None) -> int:
@@ -583,6 +610,7 @@ class MKWHopfAlgebra(HopfAlgebra):
             child_counts_tables,
             eval_orders_tables,
         ) = _build_children_eval_tables(forests)
+        colourings_by_degree = _build_colourings_by_degree(ambient_dim, len(forests))
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
@@ -592,6 +620,7 @@ class MKWHopfAlgebra(HopfAlgebra):
             children_by_degree=children_tables,
             child_counts_by_degree=child_counts_tables,
             eval_order_by_degree=eval_orders_tables,
+            colourings_by_degree=colourings_by_degree,
         )
 
     @override
