@@ -25,7 +25,11 @@ class SO3(Manifold):
     polar_steps: int = 8
     eps: float = 1e-7
 
-    def retract(self, x: jax.Array, method: Literal["polar_express", "svd"] = "svd") -> jax.Array:
+    def retract(
+        self,
+        x: jax.Array,
+        method: Literal["svd", "polar_express"] = "polar_express",
+    ) -> jax.Array:
         if x.shape[-2:] != (3, 3):
             raise ValueError(f"SO3 expects (..., 3, 3), got {x.shape}.")
 
@@ -119,7 +123,7 @@ class SO3(Manifold):
             b = jnp.asarray(b, dtype=x.dtype)
             c = jnp.asarray(c, dtype=x.dtype)
 
-            # Right-sided update (matches the published "Polar Express" polynomial):
+            # Right-sided update matches the Polar Express polynomial):
             # X <- X (aI + b (X^T X) + c (X^T X)^2)
             a_mat = jnp.swapaxes(x, -2, -1) @ x  # A = X^T X
             b_mat = b * a_mat + c * (a_mat @ a_mat)  # B = bA + cA^2
