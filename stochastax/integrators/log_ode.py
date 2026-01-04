@@ -21,7 +21,7 @@ from stochastax.control_lifts.signature_types import (
     MKWLogSignature,
     PrimitiveSignature,
 )
-from stochastax.manifolds.manifolds import Manifold, EuclideanSpace
+from stochastax.manifolds import Manifold, EuclideanSpace
 
 
 @overload
@@ -94,9 +94,10 @@ def log_ode(
     curr_state: jax.Array,
     manifold: Manifold = ...,
     *,
-    solver: diffrax.AbstractSolver = ...,
-    rtol: float = ...,
-    atol: float = ...,
+    solver: diffrax.AbstractSolver = diffrax.Tsit5(),
+    stepsize_controller: diffrax.AbstractStepSizeController = diffrax.PIDController(
+        rtol=1e-5, atol=1e-6
+    ),
     max_steps: int | None = ...,
 ) -> jax.Array: ...
 
@@ -108,9 +109,10 @@ def log_ode(
     curr_state: jax.Array,
     manifold: Manifold = ...,
     *,
-    solver: diffrax.AbstractSolver = ...,
-    rtol: float = ...,
-    atol: float = ...,
+    solver: diffrax.AbstractSolver = diffrax.Tsit5(),
+    stepsize_controller: diffrax.AbstractStepSizeController = diffrax.PIDController(
+        rtol=1e-5, atol=1e-6
+    ),
     max_steps: int | None = ...,
 ) -> jax.Array: ...
 
@@ -122,9 +124,10 @@ def log_ode(
     curr_state: jax.Array,
     manifold: Manifold = ...,
     *,
-    solver: diffrax.AbstractSolver = ...,
-    rtol: float = ...,
-    atol: float = ...,
+    solver: diffrax.AbstractSolver = diffrax.Tsit5(),
+    stepsize_controller: diffrax.AbstractStepSizeController = diffrax.PIDController(
+        rtol=1e-5, atol=1e-6
+    ),
     max_steps: int | None = ...,
 ) -> jax.Array: ...
 
@@ -136,8 +139,9 @@ def log_ode(
     manifold: Manifold = EuclideanSpace(),
     *,
     solver: diffrax.AbstractSolver = diffrax.Tsit5(),
-    rtol: float = 1e-5,
-    atol: float = 1e-6,
+    stepsize_controller: diffrax.AbstractStepSizeController = diffrax.PIDController(
+        rtol=1e-5, atol=1e-6
+    ),
     max_steps: int | None = None,
 ) -> jax.Array:
     """
@@ -166,7 +170,7 @@ def log_ode(
         dt0=None,
         y0=curr_state,
         args=None,
-        stepsize_controller=diffrax.PIDController(rtol=rtol, atol=atol),
+        stepsize_controller=stepsize_controller,
         saveat=diffrax.SaveAt(t1=True),
         max_steps=max_steps,
     )

@@ -8,7 +8,7 @@ from stochastax.vector_field_lifts.vector_field_lift_types import (
     BCKBrackets,
     BCKBracketFunctions,
 )
-from stochastax.manifolds.manifolds import Manifold, EuclideanSpace
+from stochastax.manifolds import Manifold, EuclideanSpace
 
 
 def form_bck_lift(
