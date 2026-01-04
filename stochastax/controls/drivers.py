@@ -151,18 +151,28 @@ def riemann_liouville_driver(
     i = jnp.arange(2, timesteps + 1, dtype=dW.dtype)
     w = (Δ**α) * (i ** (α + 1.0) - (i - 1.0) ** (α + 1.0)) / (α + 1.0)
 
-    def conv_full_1d(w: jax.Array, x: jax.Array) -> jax.Array:
-        L = int(2 ** jnp.ceil(jnp.log2(w.shape[0] + x.shape[0] - 1)))
-        wf = jnp.fft.rfft(jnp.pad(w, (0, L - w.shape[0])))
-        xf = jnp.fft.rfft(jnp.pad(x, (0, L - x.shape[0])))
-        y = jnp.fft.irfft(wf * xf, n=L)[: w.shape[0] + x.shape[0] - 1]
-        return y
+    def _next_pow2(n: int) -> int:
+        # Small constant-time helper; keeps FFT size static under JIT.
+        if n <= 1:
+            return 1
+        return 1 << ((n - 1).bit_length())
 
-    def per_dim(x: jax.Array) -> jax.Array:
-        y = conv_full_1d(w, x[:-1])
-        return jnp.concatenate([jnp.zeros((1,), x.dtype), y[: timesteps - 1]])
+    # Convolve along time for all dimensions at once via FFT:
+    # - w: (timesteps-1,)
+    # - dW[:-1]: (timesteps-1, dim)
+    # Output y: (2*timesteps-3, dim)
+    x = dW[:-1, :]
+    w_len = w.shape[0]
+    x_len = x.shape[0]
+    n = w_len + x_len - 1
+    L = _next_pow2(n)
 
-    Y2 = jnp.stack([per_dim(dW[:, d]) for d in range(dim)], axis=1)
+    wf = jnp.fft.rfft(jnp.pad(w, (0, L - w_len)))  # (L//2+1,)
+    xf = jnp.fft.rfft(jnp.pad(x, ((0, L - x_len), (0, 0))), axis=0)  # (L//2+1, dim)
+    y = jnp.fft.irfft(wf[:, None] * xf, n=L, axis=0)[:n, :]  # (n, dim)
+
+    # Match prior behavior: prepend 0 and truncate to length timesteps.
+    Y2 = jnp.concatenate([jnp.zeros((1, dim), dtype=dW.dtype), y[: timesteps - 1, :]], axis=0)
 
     Y_tail = sqrt2H * (I + Y2)
     Y_path = jnp.concatenate([jnp.zeros((1, dim), Y_tail.dtype), Y_tail], axis=0)
