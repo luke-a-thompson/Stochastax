@@ -35,6 +35,49 @@ def _is_special_orthogonal(
     return orth_ok and det_ok
 
 
+def _so3_diagnostics(R: jax.Array) -> tuple[bool, float, float, float]:
+    """
+    Return (is_finite, det, max_abs(R^T R - I), fro_norm(R^T R - I)) for a single 3x3 matrix.
+    """
+    RtR = jnp.swapaxes(R, -2, -1) @ R
+    eye = jnp.eye(3, dtype=R.dtype)
+    err = RtR - eye
+    is_finite = _as_bool(jnp.all(jnp.isfinite(R)))
+    det = float(jnp.linalg.det(R).item())
+    max_abs_err = float(jnp.max(jnp.abs(err)).item())
+    fro_err = float(jnp.linalg.norm(err).item())
+    return is_finite, det, max_abs_err, fro_err
+
+
+def _assert_special_orthogonal(
+    R: jax.Array,
+    *,
+    rtol: float = STRICT_RTOL,
+    atol: float = STRICT_ATOL,
+    context: str = "R",
+) -> None:
+    """
+    Assert R ∈ SO(3) with a descriptive error message.
+    """
+    is_finite, det, max_abs_err, fro_err = _so3_diagnostics(R)
+    assert is_finite, f"{context}: non-finite entries"
+
+    n = R.shape[-1]
+    RtR = jnp.swapaxes(R, -2, -1) @ R
+    identity = jnp.eye(n, dtype=R.dtype)
+    orth_close = _as_bool(jnp.allclose(RtR, identity, rtol=rtol, atol=atol))
+    det_close = _as_bool(jnp.allclose(jnp.asarray(det, dtype=R.dtype), 1.0, rtol=rtol, atol=atol))
+
+    assert orth_close, (
+        f"{context}: not orthogonal within rtol={rtol} atol={atol}. "
+        f"max|R^T R - I|={max_abs_err:.3e}, ||R^T R - I||_F={fro_err:.3e}, det={det:.8f}"
+    )
+    assert det_close, (
+        f"{context}: det not close to 1 within rtol={rtol} atol={atol}. "
+        f"det={det:.8f}, max|R^T R - I|={max_abs_err:.3e}, ||R^T R - I||_F={fro_err:.3e}"
+    )
+
+
 def _is_skew_symmetric(A: jax.Array, rtol: float = STRICT_RTOL, atol: float = STRICT_ATOL) -> bool:
     """Check if A^T = -A."""
     At = jnp.swapaxes(A, -2, -1)
@@ -47,7 +90,7 @@ def test_retract_svd_identity() -> None:
     x = jnp.eye(3, dtype=jnp.float32)
     R = manifold.retract(x, method="svd")
 
-    assert _is_special_orthogonal(R)
+    _assert_special_orthogonal(R, context="svd(identity)")
     assert _as_bool(jnp.allclose(R, x, rtol=1e-6, atol=1e-7))
 
 
@@ -57,7 +100,9 @@ def test_retract_polar_express_identity() -> None:
     x = jnp.eye(3, dtype=jnp.float32)
     R = manifold.retract(x, method="polar_express")
 
-    assert _is_special_orthogonal(R, rtol=POLAR_RTOL, atol=POLAR_ATOL)
+    _assert_special_orthogonal(
+        R, rtol=POLAR_RTOL, atol=POLAR_ATOL, context="polar_express(identity)"
+    )
     assert _as_bool(jnp.allclose(R, x, rtol=POLAR_RTOL, atol=POLAR_ATOL))
 
 
@@ -67,7 +112,7 @@ def test_retract_default_method() -> None:
     x = jnp.eye(3, dtype=jnp.float32)
     R = manifold.retract(x)
 
-    assert _is_special_orthogonal(R)
+    _assert_special_orthogonal(R, context="default_retract(identity)")
     assert _as_bool(jnp.allclose(R, x, rtol=1e-6, atol=1e-7))
 
 
@@ -92,7 +137,7 @@ def test_retract_svd_near_rotation() -> None:
 
     R = manifold.retract(x, method="svd")
 
-    assert _is_special_orthogonal(R)
+    _assert_special_orthogonal(R, context="svd(near_rotation)")
     # Should be close to the original rotation
     assert jnp.linalg.norm(R - R_true) < 0.1
 
@@ -120,7 +165,9 @@ def test_retract_polar_express_near_rotation() -> None:
     R = manifold.retract(x, method="polar_express")
 
     # Check result is approximately orthogonal and close to input
-    assert _is_special_orthogonal(R, rtol=POLAR_RTOL, atol=POLAR_ATOL)
+    _assert_special_orthogonal(
+        R, rtol=POLAR_RTOL, atol=POLAR_ATOL, context="polar_express(near_rotation)"
+    )
     assert jnp.linalg.norm(R - R_true) < 0.05
 
 
@@ -133,7 +180,7 @@ def test_retract_svd_reflection() -> None:
 
     R = manifold.retract(reflection, method="svd")
 
-    assert _is_special_orthogonal(R)
+    _assert_special_orthogonal(R, context="svd(reflection)")
     # Should not return the reflection itself
     det = jnp.linalg.det(R)
     assert _as_bool(jnp.allclose(det, 1.0, rtol=STRICT_RTOL, atol=STRICT_ATOL))
@@ -148,7 +195,7 @@ def test_retract_polar_express_reflection() -> None:
 
     R = manifold.retract(reflection, method="polar_express")
 
-    assert _is_special_orthogonal(R)
+    _assert_special_orthogonal(R, context="polar_express(reflection)")
     det = jnp.linalg.det(R)
     assert _as_bool(jnp.allclose(det, 1.0, rtol=STRICT_RTOL, atol=STRICT_ATOL))
 
@@ -170,7 +217,7 @@ def test_retract_batched_svd() -> None:
     assert R.shape == (batch_size, 3, 3)
     # Check each matrix in batch
     for i in range(batch_size):
-        assert _is_special_orthogonal(R[i])
+        _assert_special_orthogonal(R[i], context=f"svd(batch)[{i}]")
 
 
 def test_retract_batched_polar_express() -> None:
@@ -188,7 +235,9 @@ def test_retract_batched_polar_express() -> None:
 
     assert R.shape == (batch_size, 3, 3)
     for i in range(batch_size):
-        assert _is_special_orthogonal(R[i], rtol=POLAR_RTOL, atol=POLAR_ATOL)
+        _assert_special_orthogonal(
+            R[i], rtol=POLAR_RTOL, atol=POLAR_ATOL, context=f"polar_express(batch)[{i}]"
+        )
 
 
 def test_retract_invalid_method() -> None:
@@ -301,8 +350,8 @@ def test_polar_steps_parameter() -> None:
     R_many = manifold_many_steps.retract(x, method="polar_express")
 
     # Both should be in SO(3)
-    assert _is_special_orthogonal(R_few, rtol=1e-4, atol=1e-5)
-    assert _is_special_orthogonal(R_many, rtol=1e-5, atol=1e-6)
+    _assert_special_orthogonal(R_few, rtol=1e-4, atol=1e-5, context="polar_express(steps=1)")
+    _assert_special_orthogonal(R_many, rtol=1e-5, atol=1e-6, context="polar_express(steps=10)")
 
     # More steps should give better accuracy
     error_few = jnp.linalg.norm(jnp.swapaxes(R_few, -2, -1) @ R_few - jnp.eye(3))
@@ -321,7 +370,7 @@ def test_retract_jit_compatible() -> None:
     x = jnp.eye(3, dtype=jnp.float32)
     R = retract_jitted(x)
 
-    assert _is_special_orthogonal(R)
+    _assert_special_orthogonal(R, context="jit(svd_retract)")
 
 
 def test_project_to_tangent_jit_compatible() -> None:
@@ -352,9 +401,11 @@ def test_retract_methods_agree_near_identity(method: str) -> None:
 
     # Use looser tolerance for polar express
     if method == "polar_express":
-        assert _is_special_orthogonal(R, rtol=POLAR_RTOL, atol=POLAR_ATOL)
+        _assert_special_orthogonal(
+            R, rtol=POLAR_RTOL, atol=POLAR_ATOL, context="agree_near_identity(polar_express)"
+        )
     else:
-        assert _is_special_orthogonal(R)
+        _assert_special_orthogonal(R, context="agree_near_identity(svd)")
     # Should be close to identity
     assert jnp.linalg.norm(R - jnp.eye(3)) < 0.1
 
@@ -381,10 +432,20 @@ def test_retract_polar_express_random_inputs_in_so3(
     x = x + noise
     R = manifold.retract(x, method="polar_express")
 
-    assert _as_bool(jnp.all(jnp.isfinite(R)))
+    assert _as_bool(jnp.all(jnp.isfinite(R))), "polar_express(random): non-finite entries"
     if batch_size == 1:
-        assert _is_special_orthogonal(R, rtol=POLAR_RTOL, atol=POLAR_ATOL)
+        _assert_special_orthogonal(
+            R,
+            rtol=POLAR_RTOL,
+            atol=POLAR_ATOL,
+            context=f"polar_express(random, seed={seed}, scale={scale}, batch=1)",
+        )
     else:
         # Check each item to avoid accidental broadcasting mistakes.
         for i in range(batch_size):
-            assert _is_special_orthogonal(R[i], rtol=POLAR_RTOL, atol=POLAR_ATOL)
+            _assert_special_orthogonal(
+                R[i],
+                rtol=POLAR_RTOL,
+                atol=POLAR_ATOL,
+                context=f"polar_express(random, seed={seed}, scale={scale}, batch={batch_size})[{i}]",
+            )
