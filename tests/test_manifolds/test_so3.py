@@ -337,6 +337,38 @@ def test_project_to_tangent_invalid_shape() -> None:
         manifold.project_to_tangent(y, v)
 
 
+def test_from_6d_produces_so3_single() -> None:
+    manifold = SO3()
+    key = jrandom.PRNGKey(123)
+    x6 = jrandom.normal(key, (6,), dtype=jnp.float32)
+    R = manifold.from_6d(x6)
+    assert R.shape == (3, 3)
+    _assert_special_orthogonal(R, context="from_6d(single)")
+
+
+def test_from_6d_produces_so3_batched() -> None:
+    manifold = SO3()
+    key = jrandom.PRNGKey(124)
+    x6 = jrandom.normal(key, (32, 6), dtype=jnp.float32)
+    R = manifold.from_6d(x6)
+    assert R.shape == (32, 3, 3)
+    for i in range(32):
+        _assert_special_orthogonal(R[i], context=f"from_6d(batch)[{i}]")
+
+
+def test_from_6d_jit_compatible() -> None:
+    manifold = SO3()
+
+    @jax.jit
+    def f(x6: jax.Array) -> jax.Array:
+        return manifold.from_6d(x6)
+
+    key = jrandom.PRNGKey(125)
+    x6 = jrandom.normal(key, (8, 6), dtype=jnp.float32)
+    R = f(x6)
+    assert R.shape == (8, 3, 3)
+    assert _as_bool(jnp.all(jnp.isfinite(R)))
+
 def test_polar_steps_parameter() -> None:
     """Polar steps parameter affects convergence."""
     # Create a matrix far from SO(3)

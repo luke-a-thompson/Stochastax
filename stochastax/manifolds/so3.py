@@ -8,6 +8,44 @@ import jax
 import jax.numpy as jnp
 
 
+def so3_from_6d(x: jax.Array, *, eps: float = 1e-7) -> jax.Array:
+    """
+    Convert a 6D rotation representation into an SO(3) rotation matrix.
+
+    This is the common "6D rotation representation" used in neural networks:
+    interpret x = [a, b] with a,b ∈ R^3 and orthonormalize via Gram–Schmidt:
+      r1 = normalize(a)
+      r2 = normalize(b - <r1,b> r1)
+      r3 = r1 × r2
+    Return R = [r1 r2 r3] (columns), which is in SO(3) (up to numerical error).
+
+    Args:
+        x: Array with shape (..., 6).
+        eps: Small constant for numerical stability in normalization.
+
+    Returns:
+        Rotation matrix with shape (..., 3, 3).
+    """
+    if x.shape[-1] != 6:
+        raise ValueError(f"so3_from_6d expects (..., 6), got {x.shape}.")
+
+    a = x[..., 0:3]
+    b = x[..., 3:6]
+
+    def _normalize(v: jax.Array) -> jax.Array:
+        return v / (jnp.linalg.norm(v, axis=-1, keepdims=True) + jnp.asarray(eps, v.dtype))
+
+    r1 = _normalize(a)
+    b_orth = b - jnp.sum(r1 * b, axis=-1, keepdims=True) * r1
+    r2 = _normalize(b_orth)
+    r3 = jnp.cross(r1, r2, axis=-1)
+
+    r1 = r1[..., :, None]
+    r2 = r2[..., :, None]
+    r3 = r3[..., :, None]
+    return jnp.concatenate([r1, r2, r3], axis=-1)
+
+
 @dataclass(frozen=True)
 class SO3(Manifold):
     """
@@ -24,6 +62,18 @@ class SO3(Manifold):
 
     polar_steps: int = 8
     eps: float = 1e-7
+
+    def from_6d(self, x: jax.Array) -> jax.Array:
+        """
+        Convenience wrapper around :func:`so3_from_6d` using this manifold's eps.
+
+        Args:
+            x: Array with shape (..., 6).
+
+        Returns:
+            Rotation matrix with shape (..., 3, 3).
+        """
+        return so3_from_6d(x, eps=self.eps)
 
     def retract(
         self,
