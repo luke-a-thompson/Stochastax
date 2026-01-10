@@ -63,7 +63,8 @@ class SO3(Manifold):
     polar_steps: int = 8
     eps: float = 1e-7
 
-    def from_6d(self, x: jax.Array) -> jax.Array:
+    @staticmethod
+    def from_6d(x: jax.Array, eps: float = 1e-7) -> jax.Array:
         """
         Convenience wrapper around :func:`so3_from_6d` using this manifold's eps.
 
@@ -73,7 +74,7 @@ class SO3(Manifold):
         Returns:
             Rotation matrix with shape (..., 3, 3).
         """
-        return so3_from_6d(x, eps=self.eps)
+        return so3_from_6d(x, eps=eps)
 
     def retract(
         self,
@@ -115,7 +116,8 @@ class SO3(Manifold):
         skew = 0.5 * (rt_v - jnp.swapaxes(rt_v, -2, -1))
         return y @ skew
 
-    def _retract_svd(self, x: jax.Array) -> jax.Array:
+    @staticmethod
+    def _retract_svd(x: jax.Array) -> jax.Array:
         """
         Nearest rotation (Kabsch/Procrustes): R = U diag(1,1,det(UV^T)) V^T.
         """
@@ -128,7 +130,8 @@ class SO3(Manifold):
         r_fixed = u_fixed @ vt
         return r_fixed
 
-    def _retract_polar_express(self, g: jax.Array, steps: int, eps: float) -> jax.Array:
+    @staticmethod
+    def _retract_polar_express(g: jax.Array, steps: int, eps: float) -> jax.Array:
         """
         Degree-5 Polar Express iteration (matmul-only), following the published coefficient
         schedule + stabilisation tweaks (safety factor + cushioning). :contentReference[oaicite:1]{index=1}
