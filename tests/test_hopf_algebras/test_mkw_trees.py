@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
-from tests.test_integrators.conftest import benchmark_wrapper
+from tests.conftest import benchmark_wrapper
 
 # OEIS A000108: Catalan numbers; here mapping n -> Catalan(n-1)
 # https://oeis.org/A000108

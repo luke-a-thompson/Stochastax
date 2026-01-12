@@ -3,7 +3,7 @@ import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.controls.drivers import bm_driver, fractional_bm_driver, riemann_liouville_driver
 from stochastax.controls.paths_types import Path
-from tests.test_integrators.conftest import benchmark_wrapper
+from tests.conftest import benchmark_wrapper
 from typing import cast
 
 TIMESTEPS = 1024

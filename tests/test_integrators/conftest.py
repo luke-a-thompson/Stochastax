@@ -63,18 +63,6 @@ def sphere_initial_state() -> jax.Array:
     return jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
 
-def benchmark_wrapper(benchmark: BenchmarkFixture, func: Callable, *args, **kwargs) -> jax.Array:
-    """Wrapper for JAX benchmark that ensures device synchronization."""
-    warmed = jax.block_until_ready(func(*args, **kwargs))
-
-    def run() -> None:
-        jax.block_until_ready(func(*args, **kwargs))
-        return None
-
-    benchmark(run)
-    return warmed
-
-
 def build_block_rotation_generators(num_generators: int) -> jax.Array:
     """Create commuting 2x2 rotation blocks for a Euclidean system."""
     R2 = jnp.array([[0.0, -1.0], [1.0, 0.0]], dtype=jnp.float32)

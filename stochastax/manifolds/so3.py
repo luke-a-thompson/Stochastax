@@ -8,44 +8,6 @@ import jax
 import jax.numpy as jnp
 
 
-def so3_from_6d(x: jax.Array, *, eps: float = 1e-7) -> jax.Array:
-    """
-    Convert a 6D rotation representation into an SO(3) rotation matrix.
-
-    This is the common "6D rotation representation" used in neural networks:
-    interpret x = [a, b] with a,b ∈ R^3 and orthonormalize via Gram–Schmidt:
-      r1 = normalize(a)
-      r2 = normalize(b - <r1,b> r1)
-      r3 = r1 × r2
-    Return R = [r1 r2 r3] (columns), which is in SO(3) (up to numerical error).
-
-    Args:
-        x: Array with shape (..., 6).
-        eps: Small constant for numerical stability in normalization.
-
-    Returns:
-        Rotation matrix with shape (..., 3, 3).
-    """
-    if x.shape[-1] != 6:
-        raise ValueError(f"so3_from_6d expects (..., 6), got {x.shape}.")
-
-    a = x[..., 0:3]
-    b = x[..., 3:6]
-
-    def _normalize(v: jax.Array) -> jax.Array:
-        return v / (jnp.linalg.norm(v, axis=-1, keepdims=True) + jnp.asarray(eps, v.dtype))
-
-    r1 = _normalize(a)
-    b_orth = b - jnp.sum(r1 * b, axis=-1, keepdims=True) * r1
-    r2 = _normalize(b_orth)
-    r3 = jnp.cross(r1, r2, axis=-1)
-
-    r1 = r1[..., :, None]
-    r2 = r2[..., :, None]
-    r3 = r3[..., :, None]
-    return jnp.concatenate([r1, r2, r3], axis=-1)
-
-
 @dataclass(frozen=True)
 class SO3(Manifold):
     """
@@ -60,50 +22,46 @@ class SO3(Manifold):
         coefficient schedule + stabilisation tweaks (safety factor + cushioning).
     """
 
-    polar_steps: int = 8
     eps: float = 1e-7
+    polar_steps: int = 8
 
-    @staticmethod
-    def from_6d(x: jax.Array, eps: float = 1e-7) -> jax.Array:
-        """
-        Convenience wrapper around :func:`so3_from_6d` using this manifold's eps.
-
-        Args:
-            x: Array with shape (..., 6).
-
-        Returns:
-            Rotation matrix with shape (..., 3, 3).
-        """
-        return so3_from_6d(x, eps=eps)
-
+    @classmethod
     def retract(
-        self,
+        cls,
         x: jax.Array,
-        method: Literal["svd", "polar_express"] = "polar_express",
+        method: Literal["svd", "polar_express", "gram_schmidt"] = "polar_express",
     ) -> jax.Array:
-        if x.shape[-2:] != (3, 3):
-            raise ValueError(f"SO3 expects (..., 3, 3), got {x.shape}.")
-
         match method:
             case "svd":
-                return self._retract_svd(x)
+                return cls._retract_svd(x)
 
             case "polar_express":
                 # returns an orthogonal matrix; may be in O(3) not SO(3)
-                q = self._retract_polar_express(x, steps=self.polar_steps, eps=self.eps)
-                # user asked for SO(3): make it principled by falling back to SVD only if needed
+                q = cls._retract_polar_express(x, steps=cls.polar_steps, eps=cls.eps)
+                # Ensure SO(3): fall back to SVD only if needed (debug-print once per call when it happens).
                 det = jnp.linalg.det(q)
+                need_svd = jnp.any(det < 0.0)
                 return jax.lax.cond(
-                    jnp.any(det < 0.0),
-                    lambda _: self._retract_svd(x),
+                    need_svd,
+                    lambda _: (
+                        jax.debug.print(
+                            "Polar express retraction produced det<0 (min det={min_det}). Falling back to SVD (slow).",
+                            min_det=jnp.min(det),
+                        ),
+                        cls._retract_svd(x),
+                    )[1],
                     lambda _: q,
                     operand=None,
                 )
 
-            case _:
-                raise ValueError(f"Unknown method '{method}'. Must be 'svd' or 'polar_express'.")
+            case "gram_schmidt":
+                return cls._so3_from_6d(x, eps=cls.eps)
 
-    def project_to_tangent(self, y: jax.Array, v: jax.Array) -> jax.Array:
+            case _:
+                raise ValueError(f"Unknown method '{method}'. Must be 'svd', 'polar_express' or 'gram_schmidt'.")
+
+    @classmethod
+    def project_to_tangent(y: jax.Array, v: jax.Array) -> jax.Array:
         """
         Tangent space at R is { R A : A^T = -A }.
         Orthogonal projection: P_R(V) = R * skew(R^T V),
@@ -121,6 +79,9 @@ class SO3(Manifold):
         """
         Nearest rotation (Kabsch/Procrustes): R = U diag(1,1,det(UV^T)) V^T.
         """
+        if x.shape[-2:] != (3, 3):
+            raise ValueError(f"SO3 expects (..., 3, 3); got x={x.shape}.")
+        
         u, _, vt = jnp.linalg.svd(x, full_matrices=False)
         r = u @ vt
         det = jnp.linalg.det(r)
@@ -131,7 +92,7 @@ class SO3(Manifold):
         return r_fixed
 
     @staticmethod
-    def _retract_polar_express(g: jax.Array, steps: int, eps: float) -> jax.Array:
+    def _retract_polar_express(g: jax.Array, *, steps: int, eps: float) -> jax.Array:
         """
         Degree-5 Polar Express iteration (matmul-only), following the published coefficient
         schedule + stabilisation tweaks (safety factor + cushioning). :contentReference[oaicite:1]{index=1}
@@ -185,3 +146,41 @@ class SO3(Manifold):
 
         x = jax.lax.fori_loop(0, steps, body, x)
         return x
+
+    @staticmethod
+    def _so3_from_6d(x: jax.Array, *, eps: float) -> jax.Array:
+        """
+        Convert a 6D rotation representation into an SO(3) rotation matrix.
+
+        This is the common "6D rotation representation" used in neural networks:
+        interpret x = [a, b] with a,b ∈ R^3 and orthonormalize via Gram–Schmidt:
+        r1 = normalize(a)
+        r2 = normalize(b - <r1,b> r1)
+        r3 = r1 × r2
+        Return R = [r1 r2 r3] (columns), which is in SO(3) (up to numerical error).
+
+        Args:
+            x: Array with shape (..., 6).
+            eps: Small constant for numerical stability in normalization.
+
+        Returns:
+            Rotation matrix with shape (..., 3, 3).
+        """
+        if x.shape[-1] != 6:
+            raise ValueError(f"Gram-Schmidt retraction requires a vector of shape (..., 6), got {x.shape}.")
+
+        a = x[..., 0:3]
+        b = x[..., 3:6]
+
+        def _normalize(v: jax.Array) -> jax.Array:
+            return v / (jnp.linalg.norm(v, axis=-1, keepdims=True) + jnp.asarray(eps, v.dtype))
+
+        r1 = _normalize(a)
+        b_orth = b - jnp.sum(r1 * b, axis=-1, keepdims=True) * r1
+        r2 = _normalize(b_orth)
+        r3 = jnp.cross(r1, r2, axis=-1)
+
+        r1 = r1[..., :, None]
+        r2 = r2[..., :, None]
+        r3 = r3[..., :, None]
+        return jnp.concatenate([r1, r2, r3], axis=-1)

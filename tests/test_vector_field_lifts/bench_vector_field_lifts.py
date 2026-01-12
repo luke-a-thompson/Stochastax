@@ -7,17 +7,16 @@ from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra
 from stochastax.vector_field_lifts.bck_lift import form_bck_lift
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_lift
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
-from tests.conftest import BENCH_GL_CASES, BENCH_MKW_CASES, BENCH_SHUFFLE_CASES, _so3_generators
+from tests.conftest import BENCH_GL_CASES, BENCH_MKW_CASES, BENCH_SHUFFLE_CASES, _so3_generators, benchmark_wrapper
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    benchmark_wrapper,
     build_block_rotation_generators,
 )
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
 from stochastax.manifolds import Sphere
 
 
-@pytest.mark.benchmark(group="lyndon_lift")
+@pytest.mark.benchmark(group="vf_lifts")
 @pytest.mark.parametrize("dim,depth", BENCH_SHUFFLE_CASES)
 def test_lyndon_lift_benchmark_linear_block_rotation(
     benchmark: BenchmarkFixture,
@@ -43,7 +42,7 @@ def test_lyndon_lift_benchmark_linear_block_rotation(
     assert len(brackets) == depth
 
 
-@pytest.mark.benchmark(group="bck_lift")
+@pytest.mark.benchmark(group="vf_lifts")
 @pytest.mark.parametrize("dim,depth", BENCH_GL_CASES)
 def test_bck_lift_benchmark_linear_block_rotation(
     benchmark: BenchmarkFixture,
@@ -70,7 +69,7 @@ def test_bck_lift_benchmark_linear_block_rotation(
     assert len(lift) == depth
 
 
-@pytest.mark.benchmark(group="mkw_lift")
+@pytest.mark.benchmark(group="vf_lifts")
 @pytest.mark.parametrize("_dim,depth", BENCH_MKW_CASES)
 def test_mkw_lift_benchmark_so3_manifold(
     benchmark: BenchmarkFixture,

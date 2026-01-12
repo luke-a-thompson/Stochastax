@@ -10,7 +10,8 @@ class Sphere(Manifold):
     all vectors orthogonal to y.
     """
 
-    def retract(self, x: jax.Array) -> jax.Array:
+    @classmethod
+    def retract(cls, x: jax.Array) -> jax.Array:
         """Normalize vector to unit length.
 
         Args:
@@ -23,7 +24,8 @@ class Sphere(Manifold):
         norm = jnp.maximum(norm, 1e-12)
         return x / norm
 
-    def project_to_tangent(self, y: jax.Array, v: jax.Array) -> jax.Array:
+    @classmethod
+    def project_to_tangent(cls, y: jax.Array, v: jax.Array) -> jax.Array:
         """Project vector onto tangent space orthogonal to y.
 
         For the sphere, the tangent space at y is the orthogonal complement

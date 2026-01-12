@@ -5,10 +5,9 @@ from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
-from tests.conftest import _so3_generators
+from tests.conftest import _so3_generators, benchmark_wrapper
 from tests.test_integrators.conftest import (
     _linear_vector_fields,
-    benchmark_wrapper,
     build_deterministic_increments,
     build_block_rotation_generators,
     build_block_initial_state,

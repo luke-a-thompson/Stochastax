@@ -9,8 +9,9 @@ class Manifold(ABC):
     log-ODE integration, and geometric deep learning applications.
     """
 
+    @classmethod
     @abstractmethod
-    def retract(self, x: jax.Array) -> jax.Array:
+    def retract(cls, x: jax.Array) -> jax.Array:
         """Map a point from ambient space onto the manifold.
 
         This is a retraction operation that takes an arbitrary point in the
@@ -24,8 +25,9 @@ class Manifold(ABC):
         """
         pass
 
+    @classmethod
     @abstractmethod
-    def project_to_tangent(self, y: jax.Array, v: jax.Array) -> jax.Array:
+    def project_to_tangent(cls, y: jax.Array, v: jax.Array) -> jax.Array:
         """Project an ambient vector onto the tangent space at a manifold point.
 
         The tangent space T_y(M) at point y consists of all vectors tangent to
@@ -48,11 +50,13 @@ class EuclideanSpace(Manifold):
     so retraction and projection are identity operations.
     """
 
-    def retract(self, x: jax.Array) -> jax.Array:
+    @classmethod
+    def retract(cls, x: jax.Array) -> jax.Array:
         """Identity map for Euclidean space."""
         return x
 
-    def project_to_tangent(self, y: jax.Array, v: jax.Array) -> jax.Array:
+    @classmethod
+    def project_to_tangent(cls, y: jax.Array, v: jax.Array) -> jax.Array:
         """Identity projection for Euclidean space."""
         assert y.shape == v.shape, f"Shape mismatch: y.shape={y.shape}, v.shape={v.shape}"
         return v

@@ -18,10 +18,10 @@ from tests.conftest import (
     generate_brownian_path,
     generate_scalar_path,
 )
-from tests.test_integrators.conftest import benchmark_wrapper
+from tests.conftest import benchmark_wrapper
 
 
-@pytest.mark.benchmark(group="log_signature")
+@pytest.mark.benchmark(group="log_signatures")
 @pytest.mark.parametrize("dim,depth", BENCH_SHUFFLE_CASES)
 @pytest.mark.parametrize("num_timesteps", [256])
 def test_signature_benchmark_quicksig(
@@ -50,7 +50,7 @@ def test_signature_benchmark_quicksig(
     assert flattened.shape == (expected_dim,)
 
 
-@pytest.mark.benchmark(group="log_signature")
+@pytest.mark.benchmark(group="log_signatures")
 @pytest.mark.parametrize("dim,depth", BENCH_SHUFFLE_CASES)
 @pytest.mark.parametrize("num_timesteps", [256])
 def test_log_signature_benchmark_quicksig(
@@ -80,7 +80,7 @@ def test_log_signature_benchmark_quicksig(
     assert flattened.shape == (expected_dim,)
 
 
-@pytest.mark.benchmark(group="log_signature")
+@pytest.mark.benchmark(group="log_signatures")
 @pytest.mark.parametrize("dim,depth", BENCH_SHUFFLE_CASES)
 @pytest.mark.parametrize("num_timesteps", [256])
 def test_log_signature_benchmark_signax(
@@ -101,7 +101,7 @@ def test_log_signature_benchmark_signax(
     assert log_sig.shape == (expected_dim,)
 
 
-@pytest.mark.benchmark(group="bck_signature")
+@pytest.mark.benchmark(group="log_signatures")
 @pytest.mark.parametrize("dim,depth", BENCH_GL_CASES)
 @pytest.mark.parametrize("num_timesteps", [256])
 def test_bck_signature_benchmark(
@@ -129,7 +129,7 @@ def test_bck_signature_benchmark(
     assert flattened.shape == (expected_dim,)
 
 
-@pytest.mark.benchmark(group="mkw_signature")
+@pytest.mark.benchmark(group="log_signatures")
 @pytest.mark.parametrize("dim,depth", BENCH_MKW_CASES)
 @pytest.mark.parametrize("num_timesteps", [256])
 def test_mkw_signature_benchmark(

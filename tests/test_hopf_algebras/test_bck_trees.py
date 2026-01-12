@@ -4,7 +4,7 @@ import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
 from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
-from tests.test_integrators.conftest import benchmark_wrapper
+from tests.conftest import benchmark_wrapper
 
 
 # OEIS A000081: number of rooted unlabeled trees with n nodes

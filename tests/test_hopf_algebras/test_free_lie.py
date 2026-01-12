@@ -16,7 +16,7 @@ from stochastax.hopf_algebras.free_lie import (
     commutator,
     enumerate_lyndon_basis,
 )
-from tests.test_integrators.conftest import benchmark_wrapper
+from tests.conftest import benchmark_wrapper
 from stochastax.integrators.series import form_lie_series
 
 
