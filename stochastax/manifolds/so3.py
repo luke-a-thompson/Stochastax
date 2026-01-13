@@ -29,36 +29,48 @@ class SO3(Manifold):
     def retract(
         cls,
         x: jax.Array,
-        method: Literal["svd", "polar_express", "gram_schmidt"] = "polar_express",
+        *,
+        method: Literal["svd", "polar_express", "gram_schmidt"] | None = None,
     ) -> jax.Array:
-        match method:
-            case "svd":
-                return cls._retract_svd(x)
-
-            case "polar_express":
-                # returns an orthogonal matrix; may be in O(3) not SO(3)
-                q = cls._retract_polar_express(x, steps=cls.polar_steps, eps=cls.eps)
-                # Ensure SO(3): fall back to SVD only if needed (debug-print once per call when it happens).
-                det = jnp.linalg.det(q)
-                need_svd = jnp.any(det < 0.0)
-                return jax.lax.cond(
-                    need_svd,
-                    lambda _: (
-                        jax.debug.print(
-                            "Polar express retraction produced det<0 (min det={min_det}). Falling back to SVD (slow).",
-                            min_det=jnp.min(det),
-                        ),
-                        cls._retract_svd(x),
-                    )[1],
-                    lambda _: q,
-                    operand=None,
-                )
-
-            case "gram_schmidt":
+        # Default behavior:
+        # - (..., 6): interpret as 6D rep and orthonormalize via Gram–Schmidt
+        # - (..., 3, 3): project to SO(3) via SVD (exact, slower)
+        if method is None:
+            if x.shape[-1] == 6:
                 return cls._so3_from_6d(x, eps=cls.eps)
+            if x.shape[-2:] == (3, 3):
+                return cls._retract_svd(x)
+            raise ValueError(f"SO3 expects (..., 6) or (..., 3, 3); got x={x.shape}.")
 
-            case _:
-                raise ValueError(f"Unknown method '{method}'. Must be 'svd', 'polar_express' or 'gram_schmidt'.")
+        if method == "gram_schmidt":
+            return cls._so3_from_6d(x, eps=cls.eps)
+        if method == "svd":
+            return cls._retract_svd(x)
+        if method == "polar_express":
+            if x.shape[-2:] != (3, 3):
+                raise ValueError(f"SO3 expects (..., 3, 3); got x={x.shape}.")
+
+            q = cls._retract_polar_express(x, steps=cls.polar_steps, eps=cls.eps)
+
+            # Ensure SO(3): fall back to SVD only if needed (det < 0).
+            det = jnp.linalg.det(q)
+            need_svd = jnp.any(det < 0.0)
+            return jax.lax.cond(
+                need_svd,
+                lambda _: (
+                    jax.debug.print(
+                        "Polar express retraction produced det<0 (min det={min_det}). Falling back to SVD (slow).",
+                        min_det=jnp.min(det),
+                    ),
+                    cls._retract_svd(x),
+                )[1],
+                lambda _: q,
+                operand=None,
+            )
+
+        raise ValueError(
+            f"Unknown method {method}. Expected one of: 'svd', 'polar_express', 'gram_schmidt'."
+        )
 
     @classmethod
     def project_to_tangent(cls, y: jax.Array, v: jax.Array) -> jax.Array:
@@ -81,7 +93,7 @@ class SO3(Manifold):
         """
         if x.shape[-2:] != (3, 3):
             raise ValueError(f"SO3 expects (..., 3, 3); got x={x.shape}.")
-        
+
         u, _, vt = jnp.linalg.svd(x, full_matrices=False)
         r = u @ vt
         det = jnp.linalg.det(r)
@@ -167,7 +179,9 @@ class SO3(Manifold):
             Rotation matrix with shape (..., 3, 3).
         """
         if x.shape[-1] != 6:
-            raise ValueError(f"Gram-Schmidt retraction requires a vector of shape (..., 6), got {x.shape}.")
+            raise ValueError(
+                f"Gram-Schmidt retraction requires a vector of shape (..., 6), got {x.shape}."
+            )
 
         a = x[..., 0:3]
         b = x[..., 3:6]
