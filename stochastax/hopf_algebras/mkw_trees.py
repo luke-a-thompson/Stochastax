@@ -87,6 +87,4 @@ def enumerate_mkw_trees(order: int) -> list[MKWForest]:
 
     Returns a list where entry at index n-1 is the ``MKWForest`` for degree n.
     """
-    if order <= 0:
-        raise ValueError("order must be >= 1")
     return [_enumerate_mkw_trees_n(n) for n in range(1, order + 1)]

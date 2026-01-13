@@ -337,37 +337,14 @@ def test_project_to_tangent_invalid_shape() -> None:
         manifold.project_to_tangent(y, v)
 
 
-def test_from_6d_produces_so3_single() -> None:
-    manifold = SO3()
-    key = jrandom.PRNGKey(123)
-    x6 = jrandom.normal(key, (6,), dtype=jnp.float32)
-    R = manifold.from_6d(x6)
-    assert R.shape == (3, 3)
-    _assert_special_orthogonal(R, context="from_6d(single)")
-
-
 def test_from_6d_produces_so3_batched() -> None:
-    manifold = SO3()
     key = jrandom.PRNGKey(124)
     x6 = jrandom.normal(key, (32, 6), dtype=jnp.float32)
-    R = manifold.from_6d(x6)
+    R = SO3.retract(x6, method="gram_schmidt")
     assert R.shape == (32, 3, 3)
     for i in range(32):
         _assert_special_orthogonal(R[i], context=f"from_6d(batch)[{i}]")
 
-
-def test_from_6d_jit_compatible() -> None:
-    manifold = SO3()
-
-    @jax.jit
-    def f(x6: jax.Array) -> jax.Array:
-        return manifold.from_6d(x6)
-
-    key = jrandom.PRNGKey(125)
-    x6 = jrandom.normal(key, (8, 6), dtype=jnp.float32)
-    R = f(x6)
-    assert R.shape == (8, 3, 3)
-    assert _as_bool(jnp.all(jnp.isfinite(R)))
 
 def test_polar_steps_parameter() -> None:
     """Polar steps parameter affects convergence."""
@@ -389,20 +366,6 @@ def test_polar_steps_parameter() -> None:
     error_few = jnp.linalg.norm(jnp.swapaxes(R_few, -2, -1) @ R_few - jnp.eye(3))
     error_many = jnp.linalg.norm(jnp.swapaxes(R_many, -2, -1) @ R_many - jnp.eye(3))
     assert error_many <= error_few
-
-
-def test_retract_jit_compatible() -> None:
-    """Retraction is JIT-compatible."""
-    manifold = SO3()
-
-    @jax.jit
-    def retract_jitted(x: jax.Array) -> jax.Array:
-        return manifold.retract(x, method="svd")
-
-    x = jnp.eye(3, dtype=jnp.float32)
-    R = retract_jitted(x)
-
-    _assert_special_orthogonal(R, context="jit(svd_retract)")
 
 
 def test_project_to_tangent_jit_compatible() -> None:

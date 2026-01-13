@@ -61,7 +61,7 @@ class SO3(Manifold):
                 raise ValueError(f"Unknown method '{method}'. Must be 'svd', 'polar_express' or 'gram_schmidt'.")
 
     @classmethod
-    def project_to_tangent(y: jax.Array, v: jax.Array) -> jax.Array:
+    def project_to_tangent(cls, y: jax.Array, v: jax.Array) -> jax.Array:
         """
         Tangent space at R is { R A : A^T = -A }.
         Orthogonal projection: P_R(V) = R * skew(R^T V),

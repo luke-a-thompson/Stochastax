@@ -34,7 +34,10 @@ def test_so3_retract_svd_benchmark(
     retract_svd = partial(SO3.retract, method="svd")
 
     result = benchmark_wrapper(benchmark, retract_svd, x)
-    assert result.shape == (batch_size, 3, 3), f"SVD retraction bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    assert result.shape == (batch_size, 3, 3), (
+        f"SVD retraction bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    )
+
 
 @pytest.mark.benchmark(group="so3_retractions")
 @pytest.mark.parametrize("batch_size", RETRACTION_BENCH_CASES)
@@ -55,7 +58,10 @@ def test_so3_retract_gram_schmidt_benchmark(
         batch_size,
         3,
         3,
-    ), f"Gram-Schmidt retraction bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    ), (
+        f"Gram-Schmidt retraction bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    )
+
 
 @pytest.mark.benchmark(group="so3_retractions")
 @pytest.mark.parametrize("batch_size", RETRACTION_BENCH_CASES)
@@ -74,9 +80,9 @@ def test_so3_retract_polar_express_benchmark(
     retract_polar = partial(SO3.retract, method="polar_express")
 
     result = benchmark_wrapper(benchmark, retract_polar, x)
-    assert result.shape == (batch_size, 3, 3), f"Polar express retraction bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
-
-
+    assert result.shape == (batch_size, 3, 3), (
+        f"Polar express retraction bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    )
 
 
 POLAR_STEPS_BENCH_CASES: list = [
@@ -106,7 +112,9 @@ def test_so3_polar_express_steps_benchmark(
     retract_polar = partial(manifold.retract, method="polar_express")
 
     result = benchmark_wrapper(benchmark, retract_polar, x)
-    assert result.shape == (batch_size, 3, 3), f"Polar express steps bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    assert result.shape == (batch_size, 3, 3), (
+        f"Polar express steps bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    )
 
 
 @pytest.mark.benchmark(group="so3_tangent_projection")
@@ -121,7 +129,7 @@ def test_so3_project_to_tangent_benchmark(
     y = jnp.tile(jnp.eye(3, dtype=jnp.float32)[None, ...], (batch_size, 1, 1))
     v = jrandom.normal(key, (batch_size, 3, 3), dtype=jnp.float32)
 
-    project = partial(SO3.project_to_tangent)
-
-    result = benchmark_wrapper(benchmark, project, y, v)
-    assert result.shape == (batch_size, 3, 3), f"Project to tangent bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    result = benchmark_wrapper(benchmark, SO3.project_to_tangent, y, v)
+    assert result.shape == (batch_size, 3, 3), (
+        f"Project to tangent bench shape mismatch: got {result.shape}, expected {batch_size, 3, 3}"
+    )
