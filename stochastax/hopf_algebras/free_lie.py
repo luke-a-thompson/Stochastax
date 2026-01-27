@@ -51,6 +51,13 @@ def build_lyndon_dependency_tables(
 ]:
     """Precompute Lyndon split/prefix/suffix metadata per level.
 
+    For each Lyndon word :math:`w` (length > 1) we cache its **standard
+    (Shirshov) factorization** :math:`w = uv`, where :math:`v` is the longest
+    proper Lyndon suffix of :math:`w` and :math:`u` is the corresponding proper
+    prefix. Downstream routines (e.g. the shuffle/Lyndon vector field lift)
+    then evaluate brackets via the recursion :math:`[w] = [[u],[v]]` using
+    constant-time table lookups, rather than re-factorizing words at runtime.
+
     Args:
         words_by_len: output of ``enumerate_lyndon_basis`` grouping Lyndon words
             by length (indexing by level = length - 1).
