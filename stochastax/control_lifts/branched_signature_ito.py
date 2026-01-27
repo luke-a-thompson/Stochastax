@@ -5,12 +5,7 @@ from typing import Literal, overload, cast
 import jax
 import jax.numpy as jnp
 
-from stochastax.hopf_algebras.hopf_algebras import (
-    HopfAlgebra,
-    GLHopfAlgebra,
-    MKWHopfAlgebra,
-    _build_grafting_tables,
-)
+from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra, GLHopfAlgebra, MKWHopfAlgebra
 from stochastax.hopf_algebras.elements import GroupElement
 from stochastax.control_lifts.signature_types import BCKSignature, MKWSignature
 
@@ -98,18 +93,6 @@ def _branched_signature_ito_impl(
 
     dtype = path.dtype
     if higher_local_moments is None and mode in ("full", "stream"):
-        if not hopf.grafting_tables_by_degree:
-            object.__setattr__(
-                hopf,
-                "grafting_tables_by_degree",
-                _build_grafting_tables(
-                    forests_by_degree=hopf.forests_by_degree,
-                    parent_index_by_degree=hopf.parent_index_by_degree,
-                    colourings_by_degree=hopf.colourings_by_degree,
-                    ambient_dim=hopf.ambient_dimension,
-                    ordered=isinstance(hopf, MKWHopfAlgebra),
-                ),
-            )
         deltas = path[1:] - path[:-1]
         if cov_increments is None:
             covs = jnp.zeros((T - 1, d, d), dtype=dtype)

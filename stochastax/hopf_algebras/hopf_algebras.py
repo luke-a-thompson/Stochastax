@@ -838,6 +838,13 @@ class GLHopfAlgebra(HopfAlgebra):
         ) = _build_children_eval_tables(forests)
         colourings_by_degree = _build_colourings_by_degree(ambient_dim, len(forests))
         parent_index_by_degree = _build_shape_index_by_degree(forests)
+        grafting_tables_by_degree = _build_grafting_tables(
+            forests_by_degree=forests,
+            parent_index_by_degree=parent_index_by_degree,
+            colourings_by_degree=colourings_by_degree,
+            ambient_dim=ambient_dim,
+            ordered=False,
+        )
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
@@ -849,25 +856,13 @@ class GLHopfAlgebra(HopfAlgebra):
             eval_order_by_degree=eval_orders_tables,
             colourings_by_degree=colourings_by_degree,
             parent_index_by_degree=parent_index_by_degree,
-            grafting_tables_by_degree=tuple(),
+            grafting_tables_by_degree=grafting_tables_by_degree,
         )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncations must match for product.")
-        if not self.grafting_tables_by_degree:
-            object.__setattr__(
-                self,
-                "grafting_tables_by_degree",
-                _build_grafting_tables(
-                    forests_by_degree=self.forests_by_degree,
-                    parent_index_by_degree=self.parent_index_by_degree,
-                    colourings_by_degree=self.colourings_by_degree,
-                    ambient_dim=self.ambient_dimension,
-                    ordered=False,
-                ),
-            )
         depth = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
         for out_idx in range(1, depth):
@@ -1007,6 +1002,13 @@ class MKWHopfAlgebra(HopfAlgebra):
         ) = _build_children_eval_tables(forests)
         colourings_by_degree = _build_colourings_by_degree(ambient_dim, len(forests))
         parent_index_by_degree = _build_shape_index_by_degree(forests)
+        grafting_tables_by_degree = _build_grafting_tables(
+            forests_by_degree=forests,
+            parent_index_by_degree=parent_index_by_degree,
+            colourings_by_degree=colourings_by_degree,
+            ambient_dim=ambient_dim,
+            ordered=True,
+        )
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
@@ -1018,25 +1020,13 @@ class MKWHopfAlgebra(HopfAlgebra):
             eval_order_by_degree=eval_orders_tables,
             colourings_by_degree=colourings_by_degree,
             parent_index_by_degree=parent_index_by_degree,
-            grafting_tables_by_degree=tuple(),
+            grafting_tables_by_degree=grafting_tables_by_degree,
         )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncation orders must match for product.")
-        if not self.grafting_tables_by_degree:
-            object.__setattr__(
-                self,
-                "grafting_tables_by_degree",
-                _build_grafting_tables(
-                    forests_by_degree=self.forests_by_degree,
-                    parent_index_by_degree=self.parent_index_by_degree,
-                    colourings_by_degree=self.colourings_by_degree,
-                    ambient_dim=self.ambient_dimension,
-                    ordered=True,
-                ),
-            )
         depth = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
         for out_idx in range(1, depth):
