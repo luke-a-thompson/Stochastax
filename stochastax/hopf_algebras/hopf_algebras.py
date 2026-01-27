@@ -110,6 +110,12 @@ class ShuffleHopfAlgebra(HopfAlgebra):
     The representation uses per-degree flattened tensors, omitting degree 0.
     Instances built via ``build`` cache per-degree metadata so downstream
     consumers can reuse the same combinatorics instead of recomputing them.
+
+    In particular, we cache the Lyndon word basis up to the chosen depth and
+    lookup tables for each Lyndon word's **standard (Shirshov) factorization**
+    :math:`w=uv` (longest proper Lyndon suffix split). These tables allow
+    vector-field lifts and bracket formation to evaluate the recursion
+    :math:`[w]=[[u],[v]]` via constant-time index lookups.
     """
 
     ambient_dimension: int
