@@ -22,6 +22,7 @@ BENCH_GL_CASES: list = [
     pytest.param(8, 2, id="dim-8-depth-2"),
     pytest.param(2, 3, id="dim-2-depth-3"),
     pytest.param(8, 3, id="dim-8-depth-3"),
+    pytest.param(2, 5, id="dim-8-depth-5"),
 ]
 
 BENCH_MKW_CASES: list = [
@@ -29,6 +30,7 @@ BENCH_MKW_CASES: list = [
     pytest.param(8, 2, id="dim-8-depth-2"),
     pytest.param(2, 3, id="dim-2-depth-3"),
     pytest.param(8, 3, id="dim-8-depth-3"),
+    pytest.param(2, 5, id="dim-8-depth-5"),
 ]
 
 

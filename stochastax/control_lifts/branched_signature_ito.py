@@ -9,6 +9,7 @@ from stochastax.hopf_algebras.hopf_algebras import (
     HopfAlgebra,
     GLHopfAlgebra,
     MKWHopfAlgebra,
+    _build_grafting_tables,
 )
 from stochastax.hopf_algebras.elements import GroupElement
 from stochastax.control_lifts.signature_types import BCKSignature, MKWSignature
@@ -25,7 +26,15 @@ def local_ito_character(
     hopf: GLHopfAlgebra | MKWHopfAlgebra,
     extra: dict[int, float] | None = None,
 ) -> list[jax.Array]:
-    """Build per-step infinitesimal character for Itô branched signature."""
+    """Build per-step infinitesimal character for Itô branched signature.
+
+    Notes:
+        - Degree 1 encodes the increment ``delta_x``.
+        - Degree 2 encodes the Itô / quadratic-variation correction on the chain
+          trees. The input ``cov`` is interpreted as a per-step quadratic variation
+          increment (e.g. ``Δ⟨X⟩``). We inject the symmetric Itô term
+          ``0.5 * Sym(cov)`` into the chain coordinates.
+    """
     if depth != hopf.depth:
         raise ValueError("depth must equal hopf.depth")
     d = hopf.ambient_dimension
@@ -42,7 +51,10 @@ def local_ito_character(
             raise ValueError("Degree-2 chain indices not available in Hopf algebra.")
         idx = hopf.degree2_chain_indices  # shape (d, d) of flattened indices
         updates = jnp.zeros_like(out[1])
-        updates = updates.at[idx].set(cov)
+        # Inject Sym(cov) into the chain coordinates.
+        cov_sym = 0.5 * (cov + jnp.swapaxes(cov, -1, -2))
+        cov_term = cov_sym
+        updates = updates.at[idx].set(cov_term)
         out[1] = updates
 
     # Degree >= 3: optional overrides (sparse)
@@ -85,6 +97,43 @@ def _branched_signature_ito_impl(
         raise ValueError("forests must cover degrees 1..depth (exact).")
 
     dtype = path.dtype
+    if higher_local_moments is None and mode in ("full", "stream"):
+        if not hopf.grafting_tables_by_degree:
+            object.__setattr__(
+                hopf,
+                "grafting_tables_by_degree",
+                _build_grafting_tables(
+                    forests_by_degree=hopf.forests_by_degree,
+                    parent_index_by_degree=hopf.parent_index_by_degree,
+                    colourings_by_degree=hopf.colourings_by_degree,
+                    ambient_dim=hopf.ambient_dimension,
+                    ordered=isinstance(hopf, MKWHopfAlgebra),
+                ),
+            )
+        deltas = path[1:] - path[:-1]
+        if cov_increments is None:
+            covs = jnp.zeros((T - 1, d, d), dtype=dtype)
+        else:
+            covs = cov_increments
+
+        def step(
+            carry: list[jax.Array], inputs: tuple[jax.Array, jax.Array]
+        ) -> tuple[list[jax.Array], list[jax.Array]]:
+            delta_x, cov = inputs
+            a_k = local_ito_character(delta_x, cov, depth, hopf, extra=None)
+            step_sig = hopf.exp(a_k)
+            next_sig = hopf.product(carry, step_sig)
+            return next_sig, next_sig
+
+        sig0 = _zero_coeffs_from_hopf(hopf, depth, dtype)
+        sig_final, sigs = jax.lax.scan(step, sig0, (deltas, covs))
+        if mode == "full":
+            return sig_final
+        # stream mode: return list of per-step signatures
+        sigs_list: list[list[jax.Array]] = []
+        for i in range(T - 1):
+            sigs_list.append([level[i] for level in sigs])
+        return sigs_list
 
     def _compute_step(k: int) -> list[jax.Array]:
         delta_x = path[k + 1] - path[k]

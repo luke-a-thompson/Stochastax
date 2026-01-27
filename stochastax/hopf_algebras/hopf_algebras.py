@@ -12,6 +12,17 @@ from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
 from stochastax.hopf_algebras.forest_types import Forest, MKWForest, BCKForest
 
 
+@dataclass(frozen=True)
+class GraftingTable:
+    shape_out: jax.Array
+    shape_a: jax.Array
+    shape_b: jax.Array
+    colour_index_map: jax.Array
+    num_shapes_a: int
+    num_shapes_b: int
+    num_cols: int
+
+
 def _build_colourings_by_degree(ambient_dim: int, depth: int) -> tuple[np.ndarray, ...]:
     """Precompute node colourings for each degree.
 
@@ -513,9 +524,7 @@ def _grafting_product_level(
                             parent_a, parent_b, node_b, pos
                         )
                     else:
-                        parent_new, order_old = _graft_unordered_parent(
-                            parent_a, parent_b, node_b
-                        )
+                        parent_new, order_old = _graft_unordered_parent(parent_a, parent_b, node_b)
                     shape_out = out_index.get(tuple(parent_new))
                     if shape_out is None:
                         raise ValueError("Grafting produced an unknown tree shape.")
@@ -544,6 +553,134 @@ def _grafting_product_level(
                     out = out.at[shape_out, colour_index_map_jax].add(outer)
 
     return out.reshape(-1)
+
+
+def _apply_grafting_table(
+    a_level: jax.Array,
+    b_level: jax.Array,
+    num_shapes_out: int,
+    table: GraftingTable,
+) -> jax.Array:
+    colour_map = table.colour_index_map
+    if colour_map.size == 0:
+        return jnp.zeros((num_shapes_out * table.num_cols,), dtype=a_level.dtype)
+    a_coeffs = jnp.reshape(a_level, (table.num_shapes_a, -1))
+    b_coeffs = jnp.reshape(b_level, (table.num_shapes_b, -1))
+    a_pick = a_coeffs[table.shape_a]
+    b_pick = b_coeffs[table.shape_b]
+    outer = a_pick[:, :, None] * b_pick[:, None, :]
+    out_level = jnp.zeros((num_shapes_out, table.num_cols), dtype=outer.dtype)
+    out_level = out_level.at[table.shape_out[:, None, None], colour_map].add(outer)
+    return out_level.reshape(-1)
+
+
+def _build_grafting_tables(
+    forests_by_degree: Sequence[Forest] | Sequence[MKWForest] | Sequence[BCKForest],
+    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...],
+    colourings_by_degree: tuple[np.ndarray, ...],
+    ambient_dim: int,
+    ordered: bool,
+) -> tuple[tuple[GraftingTable | None, ...], ...]:
+    base = int(ambient_dim)
+    depth = len(forests_by_degree)
+    out_tables: list[list[GraftingTable | None]] = []
+    for degree_a in range(1, depth + 1):
+        row: list[GraftingTable | None] = []
+        parents_a = np.asarray(forests_by_degree[degree_a - 1].parent)
+        num_shapes_a = int(parents_a.shape[0]) if parents_a.ndim == 2 else 0
+        colourings_a = np.asarray(colourings_by_degree[degree_a - 1])
+        for degree_b in range(1, depth + 1):
+            if degree_a + degree_b > depth:
+                row.append(None)
+                continue
+            parents_b = np.asarray(forests_by_degree[degree_b - 1].parent)
+            num_shapes_b = int(parents_b.shape[0]) if parents_b.ndim == 2 else 0
+            colourings_b = np.asarray(colourings_by_degree[degree_b - 1])
+            out_index = parent_index_by_degree[degree_a + degree_b - 1]
+            entries_shape_out: list[int] = []
+            entries_shape_a: list[int] = []
+            entries_shape_b: list[int] = []
+            entries_colour_map: list[np.ndarray] = []
+            if num_shapes_a == 0 or num_shapes_b == 0:
+                row.append(
+                    GraftingTable(
+                        shape_out=jnp.zeros((0,), dtype=jnp.int32),
+                        shape_a=jnp.zeros((0,), dtype=jnp.int32),
+                        shape_b=jnp.zeros((0,), dtype=jnp.int32),
+                        colour_index_map=jnp.zeros(
+                            (0, colourings_a.shape[0], colourings_b.shape[0]),
+                            dtype=jnp.int32,
+                        ),
+                        num_shapes_a=num_shapes_a,
+                        num_shapes_b=num_shapes_b,
+                        num_cols=int(colourings_a.shape[0] * colourings_b.shape[0]),
+                    )
+                )
+                continue
+            for shape_a in range(num_shapes_a):
+                parent_a = list(map(int, parents_a[shape_a].tolist()))
+                for shape_b in range(num_shapes_b):
+                    parent_b = list(map(int, parents_b[shape_b].tolist()))
+                    if ordered:
+                        children_b = _parents_to_children_ordered(parent_b)
+                    else:
+                        children_b = _build_children_from_parent(parent_b)
+                    for node_b in range(degree_b):
+                        if ordered:
+                            positions = range(len(children_b[node_b]) + 1)
+                        else:
+                            positions = range(1)
+                        for pos in positions:
+                            if ordered:
+                                parent_new, order_old = _graft_ordered_parent(
+                                    parent_a, parent_b, node_b, pos
+                                )
+                            else:
+                                parent_new, order_old = _graft_unordered_parent(
+                                    parent_a, parent_b, node_b
+                                )
+                            shape_out = out_index.get(tuple(parent_new))
+                            if shape_out is None:
+                                raise ValueError("Grafting produced an unknown tree shape.")
+                            mapping: list[tuple[str, int]] = []
+                            for old in order_old:
+                                if old < degree_b:
+                                    mapping.append(("b", old))
+                                else:
+                                    mapping.append(("a", old - degree_b))
+                            n_total = len(mapping)
+                            colour_index_map = np.zeros(
+                                (colourings_a.shape[0], colourings_b.shape[0]), dtype=np.int32
+                            )
+                            for pos, (source, node_idx) in enumerate(mapping):
+                                weight = base ** (n_total - 1 - pos)
+                                if source == "a":
+                                    digits = colourings_a[:, node_idx][:, None]
+                                else:
+                                    digits = colourings_b[:, node_idx][None, :]
+                                colour_index_map += (digits * weight).astype(np.int32)
+                            entries_shape_out.append(shape_out)
+                            entries_shape_a.append(shape_a)
+                            entries_shape_b.append(shape_b)
+                            entries_colour_map.append(colour_index_map)
+            if entries_colour_map:
+                colour_map_arr = jnp.asarray(np.stack(entries_colour_map, axis=0), dtype=jnp.int32)
+            else:
+                colour_map_arr = jnp.zeros(
+                    (0, colourings_a.shape[0], colourings_b.shape[0]), dtype=jnp.int32
+                )
+            table = GraftingTable(
+                shape_out=jnp.asarray(entries_shape_out, dtype=jnp.int32),
+                shape_a=jnp.asarray(entries_shape_a, dtype=jnp.int32),
+                shape_b=jnp.asarray(entries_shape_b, dtype=jnp.int32),
+                colour_index_map=colour_map_arr,
+                num_shapes_a=num_shapes_a,
+                num_shapes_b=num_shapes_b,
+                num_cols=int(colourings_a.shape[0] * colourings_b.shape[0]),
+            )
+            row.append(table)
+        out_tables.append(row)
+    return tuple(tuple(row) for row in out_tables)
 
 
 def _postorder(children: list[list[int]]) -> list[int]:
@@ -644,7 +781,8 @@ class GLHopfAlgebra(HopfAlgebra):
     child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     colourings_by_degree: tuple[np.ndarray, ...] = field(default_factory=tuple)
-    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...] = field(
+    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...] = field(default_factory=tuple)
+    grafting_tables_by_degree: tuple[tuple[GraftingTable | None, ...], ...] = field(
         default_factory=tuple
     )
 
@@ -711,29 +849,41 @@ class GLHopfAlgebra(HopfAlgebra):
             eval_order_by_degree=eval_orders_tables,
             colourings_by_degree=colourings_by_degree,
             parent_index_by_degree=parent_index_by_degree,
+            grafting_tables_by_degree=tuple(),
         )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncations must match for product.")
+        if not self.grafting_tables_by_degree:
+            object.__setattr__(
+                self,
+                "grafting_tables_by_degree",
+                _build_grafting_tables(
+                    forests_by_degree=self.forests_by_degree,
+                    parent_index_by_degree=self.parent_index_by_degree,
+                    colourings_by_degree=self.colourings_by_degree,
+                    ambient_dim=self.ambient_dimension,
+                    ordered=False,
+                ),
+            )
         depth = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
         for out_idx in range(1, depth):
             acc = jnp.zeros_like(out[out_idx])
+            num_shapes_out = self.shape_count_by_degree[out_idx]
             for p in range(out_idx):
                 degree_a = p + 1
                 degree_b = out_idx - p
-                acc = acc + _grafting_product_level(
+                table = self.grafting_tables_by_degree[degree_a - 1][degree_b - 1]
+                if table is None:
+                    continue
+                acc = acc + _apply_grafting_table(
                     a_level=a_levels[p],
                     b_level=b_levels[out_idx - 1 - p],
-                    degree_a=degree_a,
-                    degree_b=degree_b,
-                    ambient_dim=self.ambient_dimension,
-                    forests_by_degree=self.forests_by_degree,
-                    parent_index_by_degree=self.parent_index_by_degree,
-                    colourings_by_degree=self.colourings_by_degree,
-                    ordered=False,
+                    num_shapes_out=num_shapes_out,
+                    table=table,
                 )
             out[out_idx] = out[out_idx] + acc
         return out
@@ -801,7 +951,8 @@ class MKWHopfAlgebra(HopfAlgebra):
     child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     colourings_by_degree: tuple[np.ndarray, ...] = field(default_factory=tuple)
-    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...] = field(
+    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...] = field(default_factory=tuple)
+    grafting_tables_by_degree: tuple[tuple[GraftingTable | None, ...], ...] = field(
         default_factory=tuple
     )
 
@@ -867,29 +1018,41 @@ class MKWHopfAlgebra(HopfAlgebra):
             eval_order_by_degree=eval_orders_tables,
             colourings_by_degree=colourings_by_degree,
             parent_index_by_degree=parent_index_by_degree,
+            grafting_tables_by_degree=tuple(),
         )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncation orders must match for product.")
+        if not self.grafting_tables_by_degree:
+            object.__setattr__(
+                self,
+                "grafting_tables_by_degree",
+                _build_grafting_tables(
+                    forests_by_degree=self.forests_by_degree,
+                    parent_index_by_degree=self.parent_index_by_degree,
+                    colourings_by_degree=self.colourings_by_degree,
+                    ambient_dim=self.ambient_dimension,
+                    ordered=True,
+                ),
+            )
         depth = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
         for out_idx in range(1, depth):
             acc = jnp.zeros_like(out[out_idx])
+            num_shapes_out = self.shape_count_by_degree[out_idx]
             for p in range(out_idx):
                 degree_a = p + 1
                 degree_b = out_idx - p
-                acc = acc + _grafting_product_level(
+                table = self.grafting_tables_by_degree[degree_a - 1][degree_b - 1]
+                if table is None:
+                    continue
+                acc = acc + _apply_grafting_table(
                     a_level=a_levels[p],
                     b_level=b_levels[out_idx - 1 - p],
-                    degree_a=degree_a,
-                    degree_b=degree_b,
-                    ambient_dim=self.ambient_dimension,
-                    forests_by_degree=self.forests_by_degree,
-                    parent_index_by_degree=self.parent_index_by_degree,
-                    colourings_by_degree=self.colourings_by_degree,
-                    ordered=True,
+                    num_shapes_out=num_shapes_out,
+                    table=table,
                 )
             out[out_idx] = out[out_idx] + acc
         return out
