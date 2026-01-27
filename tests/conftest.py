@@ -12,8 +12,7 @@ _test_key = jax.random.PRNGKey(42)
 BENCH_SHUFFLE_CASES: list = [
     pytest.param(2, 2, id="dim-2-depth-2"),
     pytest.param(8, 2, id="dim-8-depth-2"),
-    pytest.param(16, 2, id="dim-16-depth-2"),
-    pytest.param(3, 3, id="dim-3-depth-3"),
+    pytest.param(2, 3, id="dim-2-depth-3"),
     pytest.param(8, 3, id="dim-8-depth-3"),
 ]
 
@@ -21,15 +20,21 @@ BENCH_SHUFFLE_CASES: list = [
 BENCH_GL_CASES: list = [
     pytest.param(2, 2, id="dim-2-depth-2"),
     pytest.param(8, 2, id="dim-8-depth-2"),
+    pytest.param(2, 3, id="dim-2-depth-3"),
+    pytest.param(8, 3, id="dim-8-depth-3"),
 ]
 
 BENCH_MKW_CASES: list = [
     pytest.param(2, 2, id="dim-2-depth-2"),
     pytest.param(8, 2, id="dim-8-depth-2"),
+    pytest.param(2, 3, id="dim-2-depth-3"),
+    pytest.param(8, 3, id="dim-8-depth-3"),
 ]
+
 
 def _block(x):
     return jax.tree_util.tree_map(lambda y: y.block_until_ready(), x)
+
 
 def _maybe_device_put(x):
     # Put only array-like values on device; leave Python scalars/objects alone.
@@ -37,7 +42,14 @@ def _maybe_device_put(x):
         return jax.device_put(x)
     return x
 
-def benchmark_wrapper(benchmark: BenchmarkFixture, func: Callable, *args, jit: bool = True, **kwargs,):
+
+def benchmark_wrapper(
+    benchmark: BenchmarkFixture,
+    func: Callable,
+    *args,
+    jit: bool = True,
+    **kwargs,
+):
     args = jax.tree_util.tree_map(_maybe_device_put, args)
     kwargs = jax.tree_util.tree_map(_maybe_device_put, kwargs)
     f = jax.jit(func) if jit else func

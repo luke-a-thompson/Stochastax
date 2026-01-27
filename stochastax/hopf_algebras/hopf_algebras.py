@@ -318,6 +318,234 @@ def _build_children_from_parent(parent: list[int]) -> list[list[int]]:
     return children
 
 
+def _parents_to_children_ordered(parent: list[int]) -> list[list[int]]:
+    children = _build_children_from_parent(parent)
+    for node_children in children:
+        node_children.sort()
+    return children
+
+
+def _preorder_from_children(children: list[list[int]]) -> list[int]:
+    order: list[int] = []
+
+    def dfs(node: int) -> None:
+        order.append(node)
+        for child in children[node]:
+            dfs(child)
+
+    if children:
+        dfs(0)
+    return order
+
+
+def _canonical_unordered_sequence_and_order(
+    children: list[list[int]], node: int
+) -> tuple[list[int], list[int]]:
+    if not children:
+        return [1], [node]
+    child_entries: list[tuple[list[int], list[int]]] = []
+    for child in children[node]:
+        seq, order = _canonical_unordered_sequence_and_order(children, child)
+        child_entries.append((seq, order))
+    child_entries.sort(key=lambda item: item[0], reverse=True)
+    seq_out: list[int] = [1]
+    order_out: list[int] = [node]
+    for seq, order in child_entries:
+        seq_out.extend([level + 1 for level in seq])
+        order_out.extend(order)
+    return seq_out, order_out
+
+
+def _parent_array_from_order(parent_old: list[int], order_old: list[int]) -> list[int]:
+    new_index = {old: new for new, old in enumerate(order_old)}
+    parent_new: list[int] = [-1] * len(order_old)
+    for old in order_old:
+        if old == 0:
+            continue
+        p_old = parent_old[old]
+        parent_new[new_index[old]] = new_index[p_old]
+    return parent_new
+
+
+def _levelseq_to_parent(levels: list[int]) -> list[int]:
+    n = len(levels)
+    parent_py: list[int] = [-1] * n
+    stack: list[int] = []
+    for i in range(n):
+        d = levels[i]
+        while len(stack) >= d:
+            stack.pop()
+        if stack:
+            parent_py[i] = stack[-1]
+        stack.append(i)
+    return parent_py
+
+
+def _colouring_index_from_digits(digits: list[int], base: int) -> int:
+    idx = 0
+    for digit in digits:
+        idx = idx * base + int(digit)
+    return idx
+
+
+def _build_shape_index_by_degree(
+    forests: Sequence[Forest] | Sequence[MKWForest] | Sequence[BCKForest],
+) -> tuple[dict[tuple[int, ...], int], ...]:
+    indices: list[dict[tuple[int, ...], int]] = []
+    for forest in forests:
+        parents = np.asarray(forest.parent)
+        if parents.ndim != 2:
+            raise ValueError("Forest.parent must have shape [num_shapes, n_nodes].")
+        local: dict[tuple[int, ...], int] = {}
+        for idx, row in enumerate(parents):
+            key = tuple(int(v) for v in row.tolist())
+            local[key] = idx
+        indices.append(local)
+    return tuple(indices)
+
+
+def _graft_unordered_parent(
+    parent_a: list[int],
+    parent_b: list[int],
+    node_b: int,
+) -> tuple[list[int], list[int]]:
+    n_a = len(parent_a)
+    n_b = len(parent_b)
+    n_total = n_a + n_b
+    parent_old: list[int] = [-1] * n_total
+    for idx in range(n_b):
+        parent_old[idx] = parent_b[idx]
+    for idx in range(n_a):
+        offset_idx = n_b + idx
+        if idx == 0:
+            parent_old[offset_idx] = node_b
+        else:
+            parent_old[offset_idx] = n_b + parent_a[idx]
+    children = _build_children_from_parent(parent_old)
+    seq, order_old = _canonical_unordered_sequence_and_order(children, 0)
+    parent_new = _levelseq_to_parent(seq)
+    return parent_new, order_old
+
+
+def _graft_ordered_parent(
+    parent_a: list[int],
+    parent_b: list[int],
+    node_b: int,
+    position: int,
+) -> tuple[list[int], list[int]]:
+    n_a = len(parent_a)
+    n_b = len(parent_b)
+    n_total = n_a + n_b
+    parent_old: list[int] = [-1] * n_total
+    for idx in range(n_b):
+        parent_old[idx] = parent_b[idx]
+    for idx in range(n_a):
+        offset_idx = n_b + idx
+        if idx == 0:
+            parent_old[offset_idx] = node_b
+        else:
+            parent_old[offset_idx] = n_b + parent_a[idx]
+    children = _parents_to_children_ordered(parent_old)
+    root_a = n_b
+    children_b = children[node_b]
+    if position < 0 or position > len(children_b):
+        raise ValueError("Invalid insertion position for ordered graft.")
+    if root_a in children_b:
+        children_b = [child for child in children_b if child != root_a]
+    children[node_b] = children_b[:position] + [root_a] + children_b[position:]
+    order_old = _preorder_from_children(children)
+    parent_new = _parent_array_from_order(parent_old, order_old)
+    return parent_new, order_old
+
+
+def _grafting_product_level(
+    a_level: jax.Array,
+    b_level: jax.Array,
+    degree_a: int,
+    degree_b: int,
+    ambient_dim: int,
+    forests_by_degree: Sequence[Forest] | Sequence[MKWForest] | Sequence[BCKForest],
+    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...],
+    colourings_by_degree: tuple[np.ndarray, ...],
+    ordered: bool,
+) -> jax.Array:
+    n_a = degree_a
+    n_b = degree_b
+    n_total = n_a + n_b
+    if n_a <= 0 or n_b <= 0:
+        raise ValueError("Degrees must be >= 1 for grafting.")
+    if n_total - 1 >= len(forests_by_degree):
+        raise ValueError("Requested grafting degree exceeds available forest metadata.")
+
+    parents_a = np.asarray(forests_by_degree[n_a - 1].parent)
+    parents_b = np.asarray(forests_by_degree[n_b - 1].parent)
+    num_shapes_a = int(parents_a.shape[0]) if parents_a.ndim == 2 else 0
+    num_shapes_b = int(parents_b.shape[0]) if parents_b.ndim == 2 else 0
+    num_shapes_out = int(forests_by_degree[n_total - 1].parent.shape[0])
+
+    dtype = jnp.result_type(a_level, b_level)
+    out = jnp.zeros((num_shapes_out, ambient_dim**n_total), dtype=dtype)
+    if num_shapes_a == 0 or num_shapes_b == 0:
+        return out.reshape(-1)
+
+    a_coeffs = jnp.reshape(a_level, (num_shapes_a, -1))
+    b_coeffs = jnp.reshape(b_level, (num_shapes_b, -1))
+    colourings_a = np.asarray(colourings_by_degree[n_a - 1])
+    colourings_b = np.asarray(colourings_by_degree[n_b - 1])
+    out_index = parent_index_by_degree[n_total - 1]
+
+    for shape_a in range(num_shapes_a):
+        parent_a = list(map(int, parents_a[shape_a].tolist()))
+        for shape_b in range(num_shapes_b):
+            parent_b = list(map(int, parents_b[shape_b].tolist()))
+            if ordered:
+                children_b = _parents_to_children_ordered(parent_b)
+            else:
+                children_b = _build_children_from_parent(parent_b)
+            for node_b in range(n_b):
+                if ordered:
+                    positions = range(len(children_b[node_b]) + 1)
+                else:
+                    positions = range(1)
+                for pos in positions:
+                    if ordered:
+                        parent_new, order_old = _graft_ordered_parent(
+                            parent_a, parent_b, node_b, pos
+                        )
+                    else:
+                        parent_new, order_old = _graft_unordered_parent(
+                            parent_a, parent_b, node_b
+                        )
+                    shape_out = out_index.get(tuple(parent_new))
+                    if shape_out is None:
+                        raise ValueError("Grafting produced an unknown tree shape.")
+                    mapping: list[tuple[str, int]] = []
+                    for old in order_old:
+                        if old < n_b:
+                            mapping.append(("b", old))
+                        else:
+                            mapping.append(("a", old - n_b))
+                    colour_index_map = np.empty(
+                        (colourings_a.shape[0], colourings_b.shape[0]), dtype=np.int32
+                    )
+                    for idx_a, col_a in enumerate(colourings_a):
+                        for idx_b, col_b in enumerate(colourings_b):
+                            digits: list[int] = []
+                            for source, node_idx in mapping:
+                                if source == "b":
+                                    digits.append(int(col_b[node_idx]))
+                                else:
+                                    digits.append(int(col_a[node_idx]))
+                            colour_index_map[idx_a, idx_b] = _colouring_index_from_digits(
+                                digits, ambient_dim
+                            )
+                    colour_index_map_jax = jnp.asarray(colour_index_map)
+                    outer = jnp.outer(a_coeffs[shape_a], b_coeffs[shape_b])
+                    out = out.at[shape_out, colour_index_map_jax].add(outer)
+
+    return out.reshape(-1)
+
+
 def _postorder(children: list[list[int]]) -> list[int]:
     order: list[int] = []
 
@@ -416,6 +644,9 @@ class GLHopfAlgebra(HopfAlgebra):
     child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     colourings_by_degree: tuple[np.ndarray, ...] = field(default_factory=tuple)
+    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...] = field(
+        default_factory=tuple
+    )
 
     @override
     def basis_size(self, level: int | None = None) -> int:
@@ -468,6 +699,7 @@ class GLHopfAlgebra(HopfAlgebra):
             eval_orders_tables,
         ) = _build_children_eval_tables(forests)
         colourings_by_degree = _build_colourings_by_degree(ambient_dim, len(forests))
+        parent_index_by_degree = _build_shape_index_by_degree(forests)
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
@@ -478,29 +710,32 @@ class GLHopfAlgebra(HopfAlgebra):
             child_counts_by_degree=child_counts_tables,
             eval_order_by_degree=eval_orders_tables,
             colourings_by_degree=colourings_by_degree,
+            parent_index_by_degree=parent_index_by_degree,
         )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncations must match for product.")
-        m = len(a_levels)
+        depth = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
-        if m >= 2:
-            if self.degree2_chain_indices is None:
-                raise ValueError("GLHopfAlgebra not built with degree-2 tables.")
-            d = self.ambient_dimension
-            a1 = a_levels[0].reshape(-1)
-            b1 = b_levels[0].reshape(-1)
-            if a1.shape[0] != d or b1.shape[0] != d:
-                raise NotImplementedError("Degree-1 basis must be single-node with d colours.")
-            outer = jnp.outer(a1, b1)  # (d, d)
-            idx = self.degree2_chain_indices
-            updates = jnp.zeros_like(out[1])
-            updates = updates.at[idx].add(outer)
-            out[1] = out[1] + updates
-        if m >= 3:
-            raise NotImplementedError("GLHopfAlgebra product for degree>=3 not implemented yet.")
+        for out_idx in range(1, depth):
+            acc = jnp.zeros_like(out[out_idx])
+            for p in range(out_idx):
+                degree_a = p + 1
+                degree_b = out_idx - p
+                acc = acc + _grafting_product_level(
+                    a_level=a_levels[p],
+                    b_level=b_levels[out_idx - 1 - p],
+                    degree_a=degree_a,
+                    degree_b=degree_b,
+                    ambient_dim=self.ambient_dimension,
+                    forests_by_degree=self.forests_by_degree,
+                    parent_index_by_degree=self.parent_index_by_degree,
+                    colourings_by_degree=self.colourings_by_degree,
+                    ordered=False,
+                )
+            out[out_idx] = out[out_idx] + acc
         return out
 
     @override
@@ -566,6 +801,9 @@ class MKWHopfAlgebra(HopfAlgebra):
     child_counts_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     eval_order_by_degree: tuple[jax.Array, ...] = field(default_factory=tuple)
     colourings_by_degree: tuple[np.ndarray, ...] = field(default_factory=tuple)
+    parent_index_by_degree: tuple[dict[tuple[int, ...], int], ...] = field(
+        default_factory=tuple
+    )
 
     @override
     def basis_size(self, level: int | None = None) -> int:
@@ -617,6 +855,7 @@ class MKWHopfAlgebra(HopfAlgebra):
             eval_orders_tables,
         ) = _build_children_eval_tables(forests)
         colourings_by_degree = _build_colourings_by_degree(ambient_dim, len(forests))
+        parent_index_by_degree = _build_shape_index_by_degree(forests)
         return cls(
             ambient_dimension=ambient_dim,
             degree2_chain_indices=deg2_map,
@@ -627,30 +866,32 @@ class MKWHopfAlgebra(HopfAlgebra):
             child_counts_by_degree=child_counts_tables,
             eval_order_by_degree=eval_orders_tables,
             colourings_by_degree=colourings_by_degree,
+            parent_index_by_degree=parent_index_by_degree,
         )
 
     @override
     def product(self, a_levels: list[jax.Array], b_levels: list[jax.Array]) -> list[jax.Array]:
         if len(a_levels) != len(b_levels):
             raise ValueError("Truncation orders must match for product.")
-        order = len(a_levels)
+        depth = len(a_levels)
         out = [ai + bi for ai, bi in zip(a_levels, b_levels)]
-        if order >= 2:
-            if self.degree2_chain_indices is None:
-                raise ValueError("MKWHopfAlgebra not built with degree-2 tables.")
-            a1 = a_levels[0].reshape(-1)
-            b1 = b_levels[0].reshape(-1)
-            if a1.shape[0] != self.ambient_dimension or b1.shape[0] != self.ambient_dimension:
-                raise NotImplementedError(
-                    "Degree-1 basis must be single-node with ambient dimension colours."
+        for out_idx in range(1, depth):
+            acc = jnp.zeros_like(out[out_idx])
+            for p in range(out_idx):
+                degree_a = p + 1
+                degree_b = out_idx - p
+                acc = acc + _grafting_product_level(
+                    a_level=a_levels[p],
+                    b_level=b_levels[out_idx - 1 - p],
+                    degree_a=degree_a,
+                    degree_b=degree_b,
+                    ambient_dim=self.ambient_dimension,
+                    forests_by_degree=self.forests_by_degree,
+                    parent_index_by_degree=self.parent_index_by_degree,
+                    colourings_by_degree=self.colourings_by_degree,
+                    ordered=True,
                 )
-            outer = jnp.outer(a1, b1)  # (ambient_dimension, ambient_dimension)
-            idx = self.degree2_chain_indices
-            updates = jnp.zeros_like(out[1])
-            updates = updates.at[idx].add(outer)
-            out[1] = out[1] + updates
-        if order >= 3:
-            raise NotImplementedError("MKWHopfAlgebra product for order>=3 not implemented yet.")
+            out[out_idx] = out[out_idx] + acc
         return out
 
     @override
