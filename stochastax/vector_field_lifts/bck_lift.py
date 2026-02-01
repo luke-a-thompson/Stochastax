@@ -5,92 +5,9 @@ from typing import Callable, Optional
 
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import (
-    BCKBrackets,
     BCKBracketFunctions,
 )
 from stochastax.manifolds import Manifold, EuclideanSpace
-
-
-def form_bck_lift(
-    vector_fields: list[Callable[[jax.Array], jax.Array]],
-    base_point: jax.Array,
-    hopf: GLHopfAlgebra,
-    manifold: Manifold = EuclideanSpace(),
-) -> BCKBrackets:
-    """
-    Build BCK brackets (unordered rooted forests) evaluated at a base point.
-
-    Args:
-        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
-            vector field per driver dimension.
-        base_point: base point where the BCK elementary differentials' Jacobians are
-            evaluated.
-        hopf: Hopf algebra containing the unordered forests metadata via
-            ``GLHopfAlgebra.build``.
-
-    Returns:
-        List storing [num_shapes_k * d^(k+1), n, n] Jacobians per forest degree
-        (degree k+1), where num_shapes_k is the number of distinct unordered forest
-        shapes with k+1 nodes and d is the number of driver vector fields.
-    """
-    if base_point.ndim != 1:
-        raise ValueError(f"base_point must be a 1D array [n], got shape {base_point.shape}")
-    forests_by_degree = hopf.forests_by_degree
-    if len(vector_fields) != hopf.ambient_dimension:
-        raise ValueError(
-            "Number of vector fields must equal hopf.ambient_dimension "
-            f"({len(vector_fields)} != {hopf.ambient_dimension})."
-        )
-    if not forests_by_degree:
-        raise ValueError(
-            "GLHopfAlgebra instance does not contain any forests. Ensure it "
-            "was constructed via GLHopfAlgebra.build."
-        )
-    if (
-        not hopf.children_by_degree
-        or not hopf.child_counts_by_degree
-        or not hopf.eval_order_by_degree
-    ):
-        raise ValueError(
-            "GLHopfAlgebra is missing cached children metadata. Rebuild via GLHopfAlgebra.build()."
-        )
-
-    if not isinstance(manifold, EuclideanSpace):
-        raise ValueError("form_bck_lift currently supports only EuclideanSpace.")
-
-    n_state = int(base_point.shape[0])
-
-    bracket_functions = form_bck_bracket_functions(
-        vector_fields=vector_fields,
-        hopf=hopf,
-        manifold=manifold,
-    )
-
-    results_by_degree: list[jax.Array] = []
-    for degree_idx, funcs_level in enumerate(bracket_functions):
-        expected_count = hopf.basis_size(degree_idx)
-        if len(funcs_level) != expected_count:
-            raise ValueError(
-                f"Constructed {len(funcs_level)} BCK bracket functions at level {degree_idx}, "
-                f"but hopf.basis_size reports {expected_count}."
-            )
-        if expected_count == 0:
-            results_by_degree.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
-            continue
-
-        level_funcs = tuple(funcs_level)
-
-        def eval_level(
-            y: jax.Array,
-            funcs: tuple[Callable[[jax.Array], jax.Array], ...] = level_funcs,
-        ) -> jax.Array:
-            vals = [fn(y) for fn in funcs]
-            return jnp.stack(vals, axis=0)
-
-        level_jac = jax.jacfwd(eval_level)(base_point)
-        results_by_degree.append(level_jac)
-
-    return BCKBrackets(results_by_degree)
 
 
 def form_bck_bracket_functions(
@@ -132,8 +49,6 @@ def form_bck_bracket_functions(
         raise ValueError(
             "GLHopfAlgebra is missing cached children metadata. Rebuild via GLHopfAlgebra.build()."
         )
-
-    d = hopf.ambient_dimension
 
     bracket_fns_by_degree: list[list[Callable[[jax.Array], jax.Array]]] = []
 

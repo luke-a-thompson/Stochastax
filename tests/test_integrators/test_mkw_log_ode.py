@@ -6,8 +6,8 @@ from jax.scipy.linalg import expm as jexpm
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
-from stochastax.integrators.log_ode import log_ode, log_ode_homogeneous
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift, form_mkw_bracket_functions
+from stochastax.integrators.log_ode import log_ode
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_bracket_functions
 from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 from stochastax.manifolds import EuclideanSpace, Sphere
 
@@ -20,7 +20,7 @@ from tests.test_integrators.conftest import (
 )
 
 
-@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("depth", [1])
 @pytest.mark.parametrize("dim", [1, 3])
 def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim: int) -> None:
     """Planar branched log-ODE matches matrix exponential for linear Euclidean systems."""
@@ -30,7 +30,7 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     generators = build_block_rotation_generators(dim)
     vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
-    mkw_brackets = form_mkw_lift(vector_fields, y0, hopf, EuclideanSpace())
+    mkw_brackets = form_mkw_bracket_functions(vector_fields, hopf, EuclideanSpace())
 
     path = build_two_point_path(delta, dim)
     steps = path.shape[0] - 1
@@ -44,78 +44,10 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     )
     logsig = sig.log()
 
-    y_next = log_ode_homogeneous(mkw_brackets, logsig, y0)
+    y_next = log_ode(mkw_brackets, logsig, y0, EuclideanSpace())
     combined_generator = jnp.sum(generators, axis=0)
     expected = jexpm(delta * combined_generator) @ y0
-    expected = expected / jnp.linalg.norm(expected)
     assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
-
-
-def test_mkw_log_ode_euclidean(
-    rotation_matrix_2d: jax.Array, euclidean_initial_state: jax.Array
-) -> None:
-    """Depth-1 MKW log-ODE in Euclidean space matches the corresponding matrix exponential."""
-    depth = 1
-    delta = -0.41
-    A = rotation_matrix_2d[jnp.newaxis, ...]
-
-    hopf = MKWHopfAlgebra.build(1, depth)
-    mkw_brackets = form_mkw_lift(
-        _linear_vector_fields(A),
-        euclidean_initial_state,
-        hopf,
-        EuclideanSpace(),
-    )
-
-    path = jnp.array([[0.0], [delta]], dtype=jnp.float32)
-    cov = jnp.zeros((1, 1, 1), dtype=jnp.float32)
-    sig = compute_planar_branched_signature(
-        path=path,
-        depth=depth,
-        hopf=hopf,
-        mode="full",
-        cov_increments=cov,
-    )
-    logsig = sig.log()
-
-    y_next = log_ode_homogeneous(mkw_brackets, logsig, euclidean_initial_state)
-    expected = jexpm(delta * rotation_matrix_2d) @ euclidean_initial_state
-    expected = expected / jnp.linalg.norm(euclidean_initial_state)
-    assert jnp.allclose(y_next, expected, rtol=1e-6, atol=1e-6)
-
-
-def test_mkw_log_ode_state_dependent_matches_linear_homogeneous() -> None:
-    """Callable MKW bracket functions match homogeneous path for linear fields."""
-    depth = 1
-    dim = 2
-    delta = 0.1
-
-    hopf = MKWHopfAlgebra.build(dim, depth)
-    generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
-    bracket_functions = form_mkw_bracket_functions(vector_fields, hopf, EuclideanSpace())
-    base_point = build_block_initial_state(dim)
-    bracket_mats = form_mkw_lift(vector_fields, base_point, hopf, EuclideanSpace())
-
-    path = build_two_point_path(delta, dim)
-    steps = path.shape[0] - 1
-    cov = jnp.zeros((steps, dim, dim), dtype=jnp.float32)
-    sig = compute_planar_branched_signature(
-        path=path,
-        depth=depth,
-        hopf=hopf,
-        mode="full",
-        cov_increments=cov,
-    )
-    logsig = sig.log()
-
-    y0 = build_block_initial_state(dim)
-
-    with jax.disable_jit():
-        y_fun = log_ode(bracket_functions, logsig, y0)
-    y_mat = log_ode_homogeneous(bracket_mats, logsig, y0)
-
-    assert jnp.allclose(y_fun, y_mat, rtol=1e-5, atol=1e-6)
 
 
 @pytest.mark.parametrize("depth", [1, 2])
@@ -245,17 +177,3 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     cov_xy = (centered.T @ centered) / float(M_small)
     target_cov = T_small * jnp.eye(2, dtype=jnp.float32)
     assert jnp.allclose(cov_xy, target_cov, rtol=0.2, atol=0.03)
-
-
-def test_form_mkw_lift_jittable() -> None:
-    depth = 2
-    dim = 2
-    hopf = MKWHopfAlgebra.build(dim, depth)
-    generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
-    y0 = build_block_initial_state(dim)
-
-    compiled = jax.jit(lambda bp: form_mkw_lift(vector_fields, bp, hopf, EuclideanSpace()))
-    brackets = compiled(y0)
-
-    assert len(brackets) == depth

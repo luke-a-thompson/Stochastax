@@ -2,14 +2,8 @@ import jax
 import jax.numpy as jnp
 import diffrax
 from typing import overload
-from functools import partial
-from jax.scipy.linalg import expm as jexpm
 
-from stochastax.integrators.series import form_lie_series
 from stochastax.vector_field_lifts.vector_field_lift_types import (
-    LyndonBrackets,
-    BCKBrackets,
-    MKWBrackets,
     LyndonBracketFunctions,
     BCKBracketFunctions,
     MKWBracketFunctions,
@@ -22,51 +16,6 @@ from stochastax.control_lifts.signature_types import (
     PrimitiveSignature,
 )
 from stochastax.manifolds import Manifold, EuclideanSpace
-
-
-@overload
-def log_ode_homogeneous(
-    vector_field_brackets: LyndonBrackets,
-    primitive_signature: LogSignature,
-    curr_state: jax.Array,
-    manifold: Manifold = ...,
-) -> jax.Array: ...
-
-
-@overload
-def log_ode_homogeneous(
-    vector_field_brackets: BCKBrackets,
-    primitive_signature: BCKLogSignature,
-    curr_state: jax.Array,
-    manifold: Manifold = ...,
-) -> jax.Array: ...
-
-
-@overload
-def log_ode_homogeneous(
-    vector_field_brackets: MKWBrackets,
-    primitive_signature: MKWLogSignature,
-    curr_state: jax.Array,
-    manifold: Manifold = ...,
-) -> jax.Array: ...
-
-
-@partial(jax.jit, static_argnames=["manifold"])
-def log_ode_homogeneous(
-    vector_field_brackets: LyndonBrackets | BCKBrackets | MKWBrackets,
-    primitive_signature: LogSignature | BCKLogSignature | MKWLogSignature,
-    curr_state: jax.Array,
-    manifold: Manifold = EuclideanSpace(),
-) -> jax.Array:
-    """Log-ODE step for linear/homogeneous dynamics using matrix exponential."""
-    # Keep degrees that have non-empty coefficients
-    W_levels = [
-        Wk for Wk, lam in zip(vector_field_brackets, primitive_signature.coeffs) if lam.size != 0
-    ]
-    W_flat = jnp.concatenate(W_levels, axis=0) if W_levels else jnp.zeros((0, 1, 1))
-    polynomial = form_lie_series(W_flat, primitive_signature.coeffs)
-    exp_polynomial = jexpm(polynomial)
-    return manifold.retract(exp_polynomial @ curr_state)
 
 
 def _evaluate_bracket_sum(

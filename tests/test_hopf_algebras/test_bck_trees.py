@@ -111,7 +111,8 @@ def test_bck_enumeration_benchmark(benchmark: BenchmarkFixture) -> None:
     def _run_enumeration(size: int) -> jnp.ndarray:
         return enumerate_bck_trees(size)[size - 1].parent
 
-    parents = benchmark_wrapper(benchmark, _run_enumeration, n)
+    # Enumeration expects `size` as a Python int; tracing it under JIT breaks.
+    parents = benchmark_wrapper(benchmark, _run_enumeration, n, jit=False)
     expected = A000081[n]
     assert parents.shape == (expected, n)
     _assert_parent_batch(parents, n)

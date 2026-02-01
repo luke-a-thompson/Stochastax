@@ -29,8 +29,6 @@ LyndonBrackets = NewType("LyndonBrackets", list[jax.Array])
 BCKBrackets = NewType("BCKBrackets", list[jax.Array])
 MKWBrackets = NewType("MKWBrackets", list[jax.Array])
 
-VectorFieldBrackets = LyndonBrackets | BCKBrackets | MKWBrackets
-
 # Bracket functions: per-degree lists of callables V_w(y): R^n -> R^n.
 LyndonBracketFunctions = NewType(
     "LyndonBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]]
@@ -38,16 +36,6 @@ LyndonBracketFunctions = NewType(
 BCKBracketFunctions = NewType("BCKBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]])
 MKWBracketFunctions = NewType("MKWBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]])
 VectorFieldBracketFunctions = LyndonBracketFunctions | BCKBracketFunctions | MKWBracketFunctions
-
-
-class VectorFieldLift(Protocol[HopfAlgebraT]):
-    def __call__(
-        self,
-        vector_fields: list[Callable[[jax.Array], jax.Array]],
-        base_point: jax.Array,
-        hopf: HopfAlgebraT,
-        manifold: Manifold = EuclideanSpace(),
-    ) -> VectorFieldBrackets: ...
 
 
 class VectorFieldBracketFunctionLift(Protocol[HopfAlgebraT]):

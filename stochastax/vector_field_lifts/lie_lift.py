@@ -95,7 +95,10 @@ def form_lyndon_bracket_functions(
 
     Args:
         vector_fields: driver vector fields f_i: R^n -> R^n
-        hopf: ShuffleHopfAlgebra with cached Lyndon metadata (cache_lyndon_basis=True)
+        hopf: ShuffleHopfAlgebra with cached Lyndon metadata. In particular, the
+            cached prefix/suffix index tables encode the standard (Shirshov)
+            factorization w = uv (v longest proper Lyndon suffix), used to build
+            brackets via the recursion [w] = [[u],[v]] without re-factorizing words.
         project_to_tangent: optional projector to enforce manifold tangency
 
     Returns:
@@ -184,60 +187,3 @@ def form_lyndon_bracket_functions(
         bracket_fns.append(funcs_level)
 
     return LyndonBracketFunctions(bracket_fns)
-
-
-def form_lyndon_lift(
-    vector_fields: list[Callable[[jax.Array], jax.Array]],
-    base_point: jax.Array,
-    hopf: ShuffleHopfAlgebra,
-    manifold: Manifold = EuclideanSpace(),
-) -> LyndonBrackets:
-    """
-    Build nonlinear (pre-Lie) Lyndon brackets evaluated at a base point.
-
-    Args:
-        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
-            vector field per driver dimension.
-        base_point: base point where the brackets' Jacobians are evaluated.
-        hopf: Shuffle (tensor) Hopf algebra built with ``cache_lyndon_basis=True`` so
-            Lyndon combinatorics can be reused by the lift.
-        manifold: manifold to project the vector fields onto the tangent space.
-
-    Returns:
-        List storing [N_k, n, n] Jacobians per Lyndon level (degree k+1), where N_k is
-        the number of Lyndon words of length k+1.
-    """
-    if base_point.ndim != 1:
-        raise ValueError(f"base_point must be 1D, got shape {base_point.shape}.")
-    if len(vector_fields) != hopf.ambient_dimension:
-        raise ValueError(
-            "Number of vector fields must equal hopf.ambient_dimension "
-            f"({len(vector_fields)} != {hopf.ambient_dimension})."
-        )
-    n_state = int(base_point.shape[0])
-
-    vector_field_funcs = form_lyndon_bracket_functions(
-        vector_fields=vector_fields,
-        hopf=hopf,
-        manifold=manifold,
-    )
-
-    brackets_by_len: list[jax.Array] = []
-    for funcs_level in vector_field_funcs:
-        if not funcs_level:
-            brackets_by_len.append(jnp.zeros((0, n_state, n_state), dtype=base_point.dtype))
-            continue
-
-        level_funcs = tuple(funcs_level)
-
-        def eval_level(
-            y: jax.Array,
-            funcs: tuple[Callable[[jax.Array], jax.Array], ...] = level_funcs,
-        ) -> jax.Array:
-            vals = [fn(y) for fn in funcs]
-            return jnp.stack(vals, axis=0)
-
-        level_jac = jax.jacfwd(eval_level)(base_point)
-        brackets_by_len.append(level_jac)
-
-    return LyndonBrackets(brackets_by_len)

@@ -8,10 +8,10 @@ from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.controls.paths_types import Path
 from stochastax.control_lifts.log_signature import compute_log_signature
-from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
-from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
+from stochastax.vector_field_lifts.lie_lift import form_lyndon_bracket_functions
 from stochastax.integrators.log_ode import log_ode
+from stochastax.manifolds import Sphere
 
 
 def _so3_generators() -> jax.Array:
@@ -70,10 +70,10 @@ def main() -> None:
     windows: list[Path] = non_overlapping_windower(bm_path, window_size=window_size)
 
     # Lie brackets (Lyndon basis) for so(3) action on S^2 ⊂ R^3
-    A = _so3_generators()  # [3,3,3]
-    words = enumerate_lyndon_basis(depth, dim)
-    lyndon_brackets = form_lyndon_brackets_from_words(A, words)
     hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
+    A = _so3_generators()  # [3,3,3]
+    vector_fields = [lambda y, M=A[i]: M @ y for i in range(dim)]
+    lyndon_bracket_functions = form_lyndon_bracket_functions(vector_fields, hopf, Sphere())
 
     # Integrate the Log-ODE window-by-window on the sphere
     state = jnp.array([0.0, 0.0, 1.0])
@@ -82,7 +82,7 @@ def main() -> None:
         logsig = compute_log_signature(
             w.path, depth=depth, hopf=hopf, log_signature_type="Lyndon words", mode="full"
         )
-        state = log_ode(lyndon_brackets, logsig, state)
+        state = log_ode(lyndon_bracket_functions, logsig, state, Sphere())
         traj.append(state)
     trajectory = jnp.stack(traj, axis=0)
 

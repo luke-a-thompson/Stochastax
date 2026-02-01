@@ -4,7 +4,6 @@ import jax
 import jax.numpy as jnp
 import jax.random as jrandom
 import pytest
-from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.control_lifts.branched_signature_ito import (
     compute_nonplanar_branched_signature,
@@ -12,20 +11,7 @@ from stochastax.control_lifts.branched_signature_ito import (
 )
 from stochastax.control_lifts.log_signature import compute_log_signature
 from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
-from stochastax.control_lifts.signature_types import LogSignature, BCKLogSignature
-from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
-from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra
-from stochastax.vector_field_lifts import form_bck_lift, form_mkw_lift
-from stochastax.vector_field_lifts.lie_lift import form_lyndon_brackets_from_words
-from stochastax.vector_field_lifts.vector_field_lift_types import (
-    LyndonBrackets,
-    BCKBrackets,
-    MKWBrackets,
-)
-from stochastax.control_lifts.signature_types import MKWLogSignature
-from stochastax.manifolds import Sphere
 from typing import Callable
-from tests.conftest import _so3_generators
 
 
 def _linear_vector_fields(A: jax.Array) -> list:
@@ -101,81 +87,3 @@ def build_deterministic_increments(
         axis=1,
     )
     return scale * (noise + waves)
-
-
-def build_standard_log_ode_inputs(
-    depth: int, dim: int, delta: float = 0.3
-) -> tuple[LyndonBrackets, LogSignature, jax.Array]:
-    """Assemble brackets, log-signature, and initial state for Euclidean log-ODE."""
-    generators = build_block_rotation_generators(dim)
-    words = enumerate_lyndon_basis(depth, dim)
-    brackets = form_lyndon_brackets_from_words(generators, words)
-    path = build_two_point_path(delta, dim)
-    hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
-    primitive = compute_log_signature(path, depth, hopf, "Lyndon words", mode="full")
-    y0 = build_block_initial_state(dim)
-    return brackets, primitive, y0
-
-
-def build_standard_manifold_case(
-    depth: int, steps: int = 32, seed: int = 0, dt: float = 0.01
-) -> tuple[LyndonBrackets, jax.Array, jax.Array]:
-    """Create deterministic increments for manifold log-ODE benchmarking."""
-    A = _so3_generators()
-    dim = A.shape[0]
-    words = enumerate_lyndon_basis(depth, dim)
-    brackets = form_lyndon_brackets_from_words(A, words)
-    increments = build_deterministic_increments(dim, steps, seed, scale=float(dt) ** 0.5)
-    y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    return brackets, increments, y0
-
-
-def build_bck_log_ode_inputs(
-    depth: int, dim: int, delta: float = 0.35, cov_scale: float = 0.0
-) -> tuple[BCKBrackets, BCKLogSignature, jax.Array]:
-    """Assemble BCK brackets and non-planar branched log-signature."""
-    hopf = GLHopfAlgebra.build(dim, depth)
-    generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
-    y0 = build_block_initial_state(dim)
-    path = build_two_point_path(delta, dim)
-    steps = path.shape[0] - 1
-    identity = jnp.eye(dim, dtype=jnp.float32)
-    cov = jnp.tile((cov_scale * identity)[None, :, :], reps=(steps, 1, 1))
-    signature = compute_nonplanar_branched_signature(
-        path=path,
-        depth=depth,
-        hopf=hopf,
-        mode="full",
-        cov_increments=cov,
-    )
-    logsig = signature.log()
-    brackets = form_bck_lift(vector_fields, y0, hopf)
-    return brackets, logsig, y0
-
-
-def build_mkw_log_ode_inputs(
-    depth: int, steps: int = 12, seed: int = 0, cov_scale: float = 0.0
-) -> tuple[MKWBrackets, MKWLogSignature, jax.Array]:
-    """Assemble MKW brackets and planar branched log-signature on S^2."""
-    A = _so3_generators()
-    dim = A.shape[0]
-    hopf = MKWHopfAlgebra.build(dim, depth)
-    vector_fields = _linear_vector_fields(A)
-    y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
-    brackets = form_mkw_lift(vector_fields, y0, hopf, Sphere())
-
-    increments = build_deterministic_increments(dim, steps, seed, scale=0.03)
-    origin = jnp.zeros((1, dim), dtype=jnp.float32)
-    path = jnp.concatenate([origin, origin + jnp.cumsum(increments, axis=0)], axis=0)
-    identity = jnp.eye(dim, dtype=jnp.float32)
-    cov = jnp.tile((cov_scale * identity)[None, :, :], reps=(steps, 1, 1))
-    signature = compute_planar_branched_signature(
-        path=path,
-        depth=depth,
-        hopf=hopf,
-        mode="full",
-        cov_increments=cov,
-    )
-    logsig = signature.log()
-    return brackets, logsig, y0

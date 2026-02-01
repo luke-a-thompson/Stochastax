@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import math
 
+
 class SPDManifold(Manifold):
     eps: float = 1e-6
 
@@ -99,6 +100,6 @@ class SPDManifold(Manifold):
         H = flat.reshape(v.shape[:-1] + (n, n))
 
         # Symmetrise: H + H^T - diag(H) (batched-safe)
-        diag = jnp.diagonal(H, axis1=-2, axis2=-1)                         # (..., n)
-        D = jnp.eye(n, dtype=v.dtype) * diag[..., None, :]                 # (..., n, n)
+        diag = jnp.diagonal(H, axis1=-2, axis2=-1)  # (..., n)
+        D = jnp.eye(n, dtype=v.dtype) * diag[..., None, :]  # (..., n, n)
         return H + jnp.swapaxes(H, -1, -2) - D

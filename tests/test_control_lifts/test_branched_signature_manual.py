@@ -211,4 +211,3 @@ def test_bck_mkw_brownian_covariance_injection_degree2_chain() -> None:
         - sig_mkw_zero.coeffs[1][hopf_mkw.degree2_chain_indices]
     )
     assert jnp.allclose(diff_mkw, expected, atol=1e-6, rtol=1e-6)
-

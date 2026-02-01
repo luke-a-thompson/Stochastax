@@ -10,7 +10,8 @@ from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
-from stochastax.vector_field_lifts.mkw_lift import form_mkw_lift
+from stochastax.vector_field_lifts.mkw_lift import form_mkw_bracket_functions
+from stochastax.manifolds import Sphere
 
 
 def _so3_generators() -> jax.Array:
@@ -49,10 +50,6 @@ def _plot_on_sphere(trajectory: jax.Array) -> None:
     plt.show(block=True)
 
 
-def _project_to_tangent(y: jax.Array, v: jax.Array) -> jax.Array:
-    return v - jnp.dot(y, v) * y
-
-
 def _linear_vector_fields(A: jax.Array) -> list[Callable[[jax.Array], jax.Array]]:
     # A shape [d, n, n] -> list of callables V_i(y) = A[i] @ y
     vecs: list[Callable[[jax.Array], jax.Array]] = [
@@ -81,7 +78,7 @@ def main() -> None:
     A = _so3_generators()
     V = _linear_vector_fields(A)
     x0 = jnp.array([0.0, 0.0, 1.0])
-    mkw_brackets = form_mkw_lift(V, x0, hopf, _project_to_tangent)
+    mkw_brackets = form_mkw_bracket_functions(V, hopf, Sphere())
 
     # Integrate Log-ODE window-by-window using branched Itô log signatures with known QV
     state = x0
@@ -101,7 +98,7 @@ def main() -> None:
 
         logsig = sig_levels.log()  # MKWLogSignature
         # One Log-ODE update on sphere (normalization keeps state on S^2)
-        state = log_ode(mkw_brackets, logsig, state)
+        state = log_ode(mkw_brackets, logsig, state, Sphere())
         traj.append(state)
     trajectory = jnp.stack(traj, axis=0)
 
