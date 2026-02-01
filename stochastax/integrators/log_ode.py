@@ -5,7 +5,7 @@ from typing import overload
 
 from stochastax.vector_field_lifts.vector_field_lift_types import (
     LyndonBracketFunctions,
-    BCKBracketFunctions,
+    GLBracketFunctions,
     MKWBracketFunctions,
     VectorFieldBracketFunctions,
 )
@@ -53,7 +53,7 @@ def log_ode(
 
 @overload
 def log_ode(
-    bracket_functions: BCKBracketFunctions,
+    bracket_functions: GLBracketFunctions,
     primitive_signature: BCKLogSignature,
     curr_state: jax.Array,
     manifold: Manifold = ...,

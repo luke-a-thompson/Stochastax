@@ -9,4 +9,3 @@ import jax
 
 LieSeries = NewType("LieSeries", jax.Array)
 
-Series = LieSeries

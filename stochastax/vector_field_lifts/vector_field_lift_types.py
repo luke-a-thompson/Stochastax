@@ -4,8 +4,7 @@
 
 ### For use in log-ODE:
 - LyndonBrackets: The Lyndon brackets (commutators) of vector fields.
-- BCKBrackets: The BCK brackets of vector fields.
-- MKWBrackets: The MKW brackets of vector fields. Suitable for manifolds.
+- GLBrackets: The GL brackets of vector fields.
 
 """
 
@@ -18,16 +17,14 @@ from stochastax.manifolds import Manifold, EuclideanSpace
 # Bracket matrices are per-degree lists, mirroring signature inputs.
 # Each entry k stores a [Nk, n, n] stack of matrices for degree k+1.
 LyndonBrackets = NewType("LyndonBrackets", list[jax.Array])
-BCKBrackets = NewType("BCKBrackets", list[jax.Array])
-MKWBrackets = NewType("MKWBrackets", list[jax.Array])
 
 # Bracket functions: per-degree lists of callables V_w(y): R^n -> R^n.
 LyndonBracketFunctions = NewType(
     "LyndonBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]]
 )
-BCKBracketFunctions = NewType("BCKBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]])
+GLBracketFunctions = NewType("GLBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]])
 MKWBracketFunctions = NewType("MKWBracketFunctions", list[list[Callable[[jax.Array], jax.Array]]])
-VectorFieldBracketFunctions = LyndonBracketFunctions | BCKBracketFunctions | MKWBracketFunctions
+VectorFieldBracketFunctions = LyndonBracketFunctions | GLBracketFunctions | MKWBracketFunctions
 
 
 class VectorFieldBracketFunctionLift(Protocol[HopfAlgebraT]):

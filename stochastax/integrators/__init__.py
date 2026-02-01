@@ -10,11 +10,10 @@
 from .series import form_lie_series
 from .log_ode import log_ode
 
-from .integrator_types import Series, LieSeries
+from .integrator_types import LieSeries
 
 __all__ = [
     "form_lie_series",
     "log_ode",
-    "Series",
     "LieSeries",
 ]

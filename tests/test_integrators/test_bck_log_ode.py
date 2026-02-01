@@ -4,7 +4,7 @@ import pytest
 from jax.scipy.linalg import expm as jexpm
 
 from stochastax.integrators.log_ode import log_ode
-from stochastax.vector_field_lifts.bck_lift import form_bck_bracket_functions
+from stochastax.vector_field_lifts.gl_lift import form_gl_bracket_functions
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
 
@@ -32,7 +32,7 @@ def test_bck_log_ode_euclidean(
     def batched_field(y: jax.Array) -> jax.Array:
         return jnp.stack([M @ y for M in generators], axis=0)
 
-    bracket_functions = form_bck_bracket_functions(batched_field, hopf)
+    bracket_functions = form_gl_bracket_functions(batched_field, hopf)
 
     y0 = build_block_initial_state(dim)
     path = build_two_point_path(delta, dim)

@@ -4,18 +4,18 @@ from typing import Callable, Optional
 
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import (
-    BCKBracketFunctions,
+    GLBracketFunctions,
 )
 from stochastax.manifolds import Manifold, EuclideanSpace
 
 
-def form_bck_bracket_functions(
+def form_gl_bracket_functions(
     vector_field: Callable[[jax.Array], jax.Array],
     hopf: GLHopfAlgebra,
     manifold: Manifold = EuclideanSpace(),
-) -> BCKBracketFunctions:
+) -> GLBracketFunctions:
     """
-    Build callable BCK bracket vector fields V_w(y) (unordered rooted forests).
+    Build callable GL bracket vector fields V_w(y) (unordered rooted forests).
 
     Args:
         vector_field: batched driver vector field F(y): R^n -> R^(d*n), expected to
@@ -27,7 +27,7 @@ def form_bck_bracket_functions(
         Per-degree list of callable bracket functions.
     """
     if not isinstance(manifold, EuclideanSpace):
-        raise ValueError("form_bck_bracket_functions currently supports only EuclideanSpace.")
+        raise ValueError("form_gl_bracket_functions currently supports only EuclideanSpace.")
 
     forests_by_degree = hopf.forests_by_degree
     if not forests_by_degree:
@@ -49,7 +49,7 @@ def form_bck_bracket_functions(
     for degree_idx, forest in enumerate(forests_by_degree):
         parents = np.asarray(forest.parent)
         if parents.ndim != 2:
-            raise ValueError("Each BCKForest.parent must have shape [num_shapes, n_nodes]")
+            raise ValueError("Each GLForest.parent must have shape [num_shapes, n_nodes]")
         num_shapes = int(parents.shape[0])
         n_nodes = int(parents.shape[1])
         if n_nodes != degree_idx + 1:
@@ -107,7 +107,7 @@ def form_bck_bracket_functions(
                     for c_idx in child_ids:
                         child_fn = node_funcs[c_idx]
                         if child_fn is None:
-                            raise ValueError("Encountered unset child function in BCK lift.")
+                            raise ValueError("Encountered unset child function in GL lift.")
                         child_funcs.append(child_fn)
 
                     def make_node(
@@ -143,10 +143,10 @@ def form_bck_bracket_functions(
 
         if len(level_fns) != expected_count:
             raise ValueError(
-                f"Constructed {len(level_fns)} BCK bracket functions at level {degree_idx}, "
+                f"Constructed {len(level_fns)} GL bracket functions at level {degree_idx}, "
                 f"but hopf.basis_size reports {expected_count}."
             )
 
         bracket_fns_by_degree.append(level_fns)
 
-    return BCKBracketFunctions(bracket_fns_by_degree)
+    return GLBracketFunctions(bracket_fns_by_degree)

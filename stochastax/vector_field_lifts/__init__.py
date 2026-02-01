@@ -11,27 +11,27 @@ Vector field lifts for ordinary differential and stochastic calculus.
 from .lie_lift import (
     form_lyndon_bracket_functions,
 )
-from .bck_lift import (
-    form_bck_bracket_functions,
+from .gl_lift import (
+    form_gl_bracket_functions,
 )
 from .mkw_lift import (
     form_mkw_bracket_functions,
 )
 from .vector_field_lift_types import (
-    LyndonBrackets,
-    BCKBrackets,
-    MKWBrackets,
     VectorFieldBracketFunctionLift,
+    LyndonBracketFunctions,
+    GLBracketFunctions,
+    MKWBracketFunctions,
 )
 
 __all__ = [
     # Function lifts
     "form_lyndon_bracket_functions",
-    "form_bck_bracket_functions",
+    "form_gl_bracket_functions",
     "form_mkw_bracket_functions",
     # Vector field lift types
-    "LyndonBrackets",
-    "BCKBrackets",
-    "MKWBrackets",
     "VectorFieldBracketFunctionLift",
+    "LyndonBracketFunctions",
+    "GLBracketFunctions",
+    "MKWBracketFunctions",
 ]

@@ -11,7 +11,7 @@ from pytest_benchmark.fixture import BenchmarkFixture
 
 from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra, ShuffleHopfAlgebra
 from stochastax.manifolds import EuclideanSpace
-from stochastax.vector_field_lifts.bck_lift import form_bck_bracket_functions
+from stochastax.vector_field_lifts.gl_lift import form_gl_bracket_functions
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_bracket_functions
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_bracket_functions
 from tests.conftest import benchmark_wrapper
@@ -148,7 +148,7 @@ def test_bench_lyndon_bracket_functions_eval(
 
 @pytest.mark.benchmark(group="vf_lift_build")
 @pytest.mark.parametrize("depth,dim,state_dim,hidden_dim,mlp_depth", BENCH_CASES)
-def test_bench_bck_bracket_functions_build(
+def test_bench_gl_bracket_functions_build(
     benchmark: BenchmarkFixture,
     depth: int,
     dim: int,
@@ -161,7 +161,7 @@ def test_bench_bck_bracket_functions_build(
     hopf = GLHopfAlgebra.build(dim, depth)
 
     def build() -> list[list[Callable[[jax.Array], jax.Array]]]:
-        return form_bck_bracket_functions(batched_field, hopf, EuclideanSpace())
+        return form_gl_bracket_functions(batched_field, hopf, EuclideanSpace())
 
     bracket_functions = benchmark(build)
     assert len(bracket_functions) == depth
@@ -169,7 +169,7 @@ def test_bench_bck_bracket_functions_build(
 
 @pytest.mark.benchmark(group="vf_lift_eval")
 @pytest.mark.parametrize("depth,dim,state_dim,hidden_dim,mlp_depth", BENCH_CASES)
-def test_bench_bck_bracket_functions_eval(
+def test_bench_gl_bracket_functions_eval(
     benchmark: BenchmarkFixture,
     depth: int,
     dim: int,
@@ -180,7 +180,7 @@ def test_bench_bck_bracket_functions_eval(
     key = jax.random.PRNGKey(1)
     batched_field = _make_batched_vector_field(key, dim, state_dim, hidden_dim, mlp_depth)
     hopf = GLHopfAlgebra.build(dim, depth)
-    bracket_functions = form_bck_bracket_functions(batched_field, hopf, EuclideanSpace())
+    bracket_functions = form_gl_bracket_functions(batched_field, hopf, EuclideanSpace())
     eval_fn = _make_eval_fn(bracket_functions)
     y0 = jnp.linspace(0.1, 0.2, num=state_dim, dtype=jnp.float32)
 
