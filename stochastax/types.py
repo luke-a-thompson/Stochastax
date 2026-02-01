@@ -4,7 +4,7 @@ Public API:
 - Hopf algebras: ShuffleHopfAlgebra, GLHopfAlgebra, MKWHopfAlgebra
 - Signatures: LogSignature, BCKLogSignature, MKWLogSignature
 - Vector field brackets: LyndonBrackets, BCKBrackets, MKWBrackets
-- Series: ButcherSeries, LieSeries, LieButcherSeries
+- Series: LieSeries
 """
 
 from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra

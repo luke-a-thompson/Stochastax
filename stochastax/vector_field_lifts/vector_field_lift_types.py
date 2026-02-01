@@ -7,9 +7,6 @@
 - BCKBrackets: The BCK brackets of vector fields.
 - MKWBrackets: The MKW brackets of vector fields. Suitable for manifolds.
 
-### For use in Butcher/Lie-Butcher series:
-- ButcherDifferentials: The elementary differentials of a vector field evaluated as a BCK forest.
-- LieButcherDifferentials: The elementary differentials of a vector field evaluated as a MKW forest. Suitable for manifolds.
 """
 
 import jax
@@ -17,11 +14,6 @@ from typing import NewType, Protocol, Callable
 
 from stochastax.hopf_algebras.hopf_algebras import HopfAlgebraT
 from stochastax.manifolds import Manifold, EuclideanSpace
-
-# Elementary differentials for Butcher/Lie-Butcher are kept as a single stacked array
-# because series formation code expects a flat concatenation contract.
-ButcherDifferentials = NewType("ButcherDifferentials", jax.Array)
-LieButcherDifferentials = NewType("LieButcherDifferentials", jax.Array)
 
 # Bracket matrices are per-degree lists, mirroring signature inputs.
 # Each entry k stores a [Nk, n, n] stack of matrices for degree k+1.
@@ -41,7 +33,7 @@ VectorFieldBracketFunctions = LyndonBracketFunctions | BCKBracketFunctions | MKW
 class VectorFieldBracketFunctionLift(Protocol[HopfAlgebraT]):
     def __call__(
         self,
-        vector_fields: list[Callable[[jax.Array], jax.Array]],
+        vector_field: Callable[[jax.Array], jax.Array],
         hopf: HopfAlgebraT,
         manifold: Manifold = EuclideanSpace(),
     ) -> VectorFieldBracketFunctions: ...

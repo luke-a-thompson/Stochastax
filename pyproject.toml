@@ -16,7 +16,6 @@ keywords = [
     "rough-paths",
     "jax",
     "log-ode",
-    "butcher-series",
     "machine-learning",
     "time-series",
 ]

@@ -11,10 +11,6 @@
 - Path augmentations (time, lead-lag, non-overlapping windows)
 - Misc analytic tools (Hurst index, Wong-Zakai step count, Friz-Riedel meshsize)
 
-### Butcher Series
-- Butcher series
-- Lie-Butcher series
-
 ### Stochastic and Rough Differential Equations
 - Brownian motion
 - Fractional Brownian motion
