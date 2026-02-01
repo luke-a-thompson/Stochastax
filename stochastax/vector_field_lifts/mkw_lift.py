@@ -11,7 +11,7 @@ from stochastax.manifolds import Manifold, EuclideanSpace
 
 
 def form_mkw_bracket_functions(
-    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    vector_field: Callable[[jax.Array], jax.Array],
     hopf: MKWHopfAlgebra,
     manifold: Manifold = EuclideanSpace(),
 ) -> MKWBracketFunctions:
@@ -19,8 +19,8 @@ def form_mkw_bracket_functions(
     Build callable MKW bracket vector fields V_w(y) (planar rooted forests).
 
     Args:
-        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
-            vector field per driver dimension.
+        vector_field: batched driver vector field F(y): R^n -> R^(d*n), expected to
+            return shape [d, n] where d = hopf.ambient_dimension.
         hopf: Hopf algebra containing the planar forests metadata via
             ``MKWHopfAlgebra.build``.
         project_to_tangent: projection map enforcing tangent dynamics on a manifold;
@@ -30,11 +30,6 @@ def form_mkw_bracket_functions(
         Per-degree list of callable bracket functions.
     """
     forests_by_degree = hopf.forests_by_degree
-    if len(vector_fields) != hopf.ambient_dimension:
-        raise ValueError(
-            "Number of vector fields must equal hopf.ambient_dimension "
-            f"({len(vector_fields)} != {hopf.ambient_dimension})."
-        )
     if not forests_by_degree:
         raise ValueError(
             "MKWHopfAlgebra instance does not contain any forests. Ensure it "
@@ -102,7 +97,7 @@ def form_mkw_bracket_functions(
                     if num_children == 0:
 
                         def leaf_field(y: jax.Array, colour_idx: int = colour) -> jax.Array:
-                            return manifold.project_to_tangent(y, vector_fields[colour_idx](y))
+                            return manifold.project_to_tangent(y, vector_field(y)[colour_idx])
 
                         node_funcs[node_idx] = leaf_field
                         continue
@@ -122,7 +117,7 @@ def form_mkw_bracket_functions(
                     ) -> Callable[[jax.Array], jax.Array]:
                         def node_fn(y: jax.Array) -> jax.Array:
                             def g(z: jax.Array) -> jax.Array:
-                                return manifold.project_to_tangent(z, vector_fields[colour_idx](z))
+                                return manifold.project_to_tangent(z, vector_field(z)[colour_idx])
 
                             current = g
                             for cf in funcs:

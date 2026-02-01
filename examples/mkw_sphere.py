@@ -76,9 +76,12 @@ def main() -> None:
 
     # Vector-field brackets (MKW) using tangent projection
     A = _so3_generators()
-    V = _linear_vector_fields(A)
     x0 = jnp.array([0.0, 0.0, 1.0])
-    mkw_brackets = form_mkw_bracket_functions(V, hopf, Sphere())
+
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in A], axis=0)
+
+    mkw_brackets = form_mkw_bracket_functions(batched_field, hopf, Sphere())
 
     # Integrate Log-ODE window-by-window using branched Itô log signatures with known QV
     state = x0
@@ -90,7 +93,7 @@ def main() -> None:
         # Planar branched signature (group element tail per degree)
         sig_levels = compute_planar_branched_signature(
             path=w.path,
-            order_m=depth,
+            depth=depth,
             hopf=hopf,
             mode="full",
             cov_increments=cov_increments,

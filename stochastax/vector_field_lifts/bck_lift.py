@@ -1,5 +1,4 @@
 import jax
-import jax.numpy as jnp
 import numpy as np
 from typing import Callable, Optional
 
@@ -11,7 +10,7 @@ from stochastax.manifolds import Manifold, EuclideanSpace
 
 
 def form_bck_bracket_functions(
-    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    vector_field: Callable[[jax.Array], jax.Array],
     hopf: GLHopfAlgebra,
     manifold: Manifold = EuclideanSpace(),
 ) -> BCKBracketFunctions:
@@ -19,8 +18,8 @@ def form_bck_bracket_functions(
     Build callable BCK bracket vector fields V_w(y) (unordered rooted forests).
 
     Args:
-        vector_fields: list of driver vector fields vector_fields[i]: R^n -> R^n. One
-            vector field per driver dimension.
+        vector_field: batched driver vector field F(y): R^n -> R^(d*n), expected to
+            return shape [d, n] where d = hopf.ambient_dimension.
         hopf: Hopf algebra containing the unordered forests metadata via
             ``GLHopfAlgebra.build``.
 
@@ -31,11 +30,6 @@ def form_bck_bracket_functions(
         raise ValueError("form_bck_bracket_functions currently supports only EuclideanSpace.")
 
     forests_by_degree = hopf.forests_by_degree
-    if len(vector_fields) != hopf.ambient_dimension:
-        raise ValueError(
-            "Number of vector fields must equal hopf.ambient_dimension "
-            f"({len(vector_fields)} != {hopf.ambient_dimension})."
-        )
     if not forests_by_degree:
         raise ValueError(
             "GLHopfAlgebra instance does not contain any forests. Ensure it "
@@ -101,7 +95,10 @@ def form_bck_bracket_functions(
                     colour = int(colours[node_idx])
                     num_children = int(child_counts[node_idx])
                     if num_children == 0:
-                        node_funcs[node_idx] = vector_fields[colour]
+                        def leaf(y: jax.Array, colour_idx: int = colour) -> jax.Array:
+                            return vector_field(y)[colour_idx]
+
+                        node_funcs[node_idx] = leaf
                         continue
                     child_ids = [
                         int(children_indices[node_idx, slot]) for slot in range(num_children)
@@ -118,15 +115,18 @@ def form_bck_bracket_functions(
                         funcs: list[Callable[[jax.Array], jax.Array]],
                     ) -> Callable[[jax.Array], jax.Array]:
                         def node_fn(y: jax.Array) -> jax.Array:
-                            g = vector_fields[colour_idx]
+                            def g(z: jax.Array, colour_idx: int = colour_idx) -> jax.Array:
+                                return vector_field(z)[colour_idx]
+
+                            current = g
                             for cf in funcs:
 
-                                def g_next(z: jax.Array, g=g, cf=cf) -> jax.Array:
+                                def g_next(z: jax.Array, g=current, cf=cf) -> jax.Array:
                                     _, dg_v = jax.jvp(g, (z,), (cf(z),))
                                     return manifold.project_to_tangent(z, dg_v)
 
-                                g = g_next
-                            return g(y)
+                                current = g_next
+                            return current(y)
 
                         return node_fn
 

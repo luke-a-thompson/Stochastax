@@ -72,8 +72,11 @@ def main() -> None:
     # Lie brackets (Lyndon basis) for so(3) action on S^2 ⊂ R^3
     hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
     A = _so3_generators()  # [3,3,3]
-    vector_fields = [lambda y, M=A[i]: M @ y for i in range(dim)]
-    lyndon_bracket_functions = form_lyndon_bracket_functions(vector_fields, hopf, Sphere())
+
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in A], axis=0)
+
+    lyndon_bracket_functions = form_lyndon_bracket_functions(batched_field, hopf, Sphere())
 
     # Integrate the Log-ODE window-by-window on the sphere
     state = jnp.array([0.0, 0.0, 1.0])

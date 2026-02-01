@@ -28,9 +28,11 @@ def test_mkw_log_ode_euclidean_linear_matches_matrix_exponential(depth: int, dim
     hopf = MKWHopfAlgebra.build(dim, depth)
 
     generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
     y0 = build_block_initial_state(dim)
-    mkw_brackets = form_mkw_bracket_functions(vector_fields, hopf, EuclideanSpace())
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in generators], axis=0)
+
+    mkw_brackets = form_mkw_bracket_functions(batched_field, hopf, EuclideanSpace())
 
     path = build_two_point_path(delta, dim)
     steps = path.shape[0] - 1
@@ -99,12 +101,14 @@ def test_mkw_log_ode_manifold(depth: int, sphere_initial_state: jax.Array) -> No
     """
     # Use so(3) generators, but vector fields evaluated through projection for MKW brackets
     A = _so3_generators()  # [3,3,3]
-    V = _linear_vector_fields(A)
     y0 = sphere_initial_state
     dim = 3
 
     hopf = MKWHopfAlgebra.build(dim, depth)
-    mkw_bracket_functions = form_mkw_bracket_functions(V, hopf, Sphere())
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in A], axis=0)
+
+    mkw_bracket_functions = form_mkw_bracket_functions(batched_field, hopf, Sphere())
 
     key = jax.random.PRNGKey(4)
     timesteps = 1000

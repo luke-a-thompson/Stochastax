@@ -86,7 +86,7 @@ def form_lyndon_brackets_from_words(
 
 
 def form_lyndon_bracket_functions(
-    vector_fields: list[Callable[[jax.Array], jax.Array]],
+    vector_field: Callable[[jax.Array], jax.Array],
     hopf: ShuffleHopfAlgebra,
     manifold: Manifold = EuclideanSpace(),
 ) -> LyndonBracketFunctions:
@@ -94,7 +94,8 @@ def form_lyndon_bracket_functions(
     Build callable Lyndon bracket vector fields V_w(y).
 
     Args:
-        vector_fields: driver vector fields f_i: R^n -> R^n
+        vector_field: batched driver vector field F(y): R^n -> R^(d*n), expected to
+            return shape [d, n] where d = hopf.ambient_dimension.
         hopf: ShuffleHopfAlgebra with cached Lyndon metadata. In particular, the
             cached prefix/suffix index tables encode the standard (Shirshov)
             factorization w = uv (v longest proper Lyndon suffix), used to build
@@ -104,12 +105,6 @@ def form_lyndon_bracket_functions(
     Returns:
         Nested lists: level k contains callables for Lyndon words of length k+1.
     """
-    if len(vector_fields) != hopf.ambient_dimension:
-        raise ValueError(
-            "Number of vector fields must equal hopf.ambient_dimension "
-            f"({len(vector_fields)} != {hopf.ambient_dimension})."
-        )
-
     cached_words = hopf.lyndon_basis_by_degree
     prefix_level_by_degree = hopf.lyndon_prefix_level_by_degree
     prefix_index_by_degree = hopf.lyndon_prefix_index_by_degree
@@ -146,7 +141,7 @@ def form_lyndon_bracket_functions(
 
                 def make_leaf(index: int) -> Callable[[jax.Array], jax.Array]:
                     def leaf(y: jax.Array) -> jax.Array:
-                        return manifold.project_to_tangent(y, vector_fields[index](y))
+                        return manifold.project_to_tangent(y, vector_field(y)[index])
 
                     return leaf
 

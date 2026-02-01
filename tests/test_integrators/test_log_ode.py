@@ -43,8 +43,11 @@ def test_lyndon_log_ode_zero_control_identity() -> None:
     hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
 
     A = _so3_generators()
-    V = _linear_vector_fields(A)
-    bracket_functions = form_lyndon_bracket_functions(V, hopf, Sphere())
+
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in A], axis=0)
+
+    bracket_functions = form_lyndon_bracket_functions(batched_field, hopf, Sphere())
 
     y0 = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
     zero_path = jnp.zeros((2, dim), dtype=jnp.float32)
@@ -62,8 +65,10 @@ def test_lyndon_log_ode_euclidean_depth1_linear_matches_matrix_exponential(dim: 
 
     hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
     generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
-    bracket_functions = form_lyndon_bracket_functions(vector_fields, hopf)
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in generators], axis=0)
+
+    bracket_functions = form_lyndon_bracket_functions(batched_field, hopf)
 
     path = jnp.stack(
         [jnp.zeros((dim,), dtype=jnp.float32), jnp.full((dim,), delta, dtype=jnp.float32)]
@@ -94,7 +99,10 @@ def test_lyndon_log_ode_manifold_brownian_statistics() -> None:
     depth: int = 1
     dim: int = A.shape[0]
     hopf = ShuffleHopfAlgebra.build(ambient_dim=dim, depth=depth)
-    bracket_functions = form_lyndon_bracket_functions(_linear_vector_fields(A), hopf, Sphere())
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in A], axis=0)
+
+    bracket_functions = form_lyndon_bracket_functions(batched_field, hopf, Sphere())
     y0: jax.Array = jnp.array([0.0, 0.0, 1.0], dtype=jnp.float32)
 
     # JIT step integrator across a path of increments at depth=1

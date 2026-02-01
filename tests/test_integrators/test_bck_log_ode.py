@@ -29,8 +29,10 @@ def test_bck_log_ode_euclidean(
 
     hopf = GLHopfAlgebra.build(dim, depth)
     generators = build_block_rotation_generators(dim)
-    vector_fields = _linear_vector_fields(generators)
-    bracket_functions = form_bck_bracket_functions(vector_fields, hopf)
+    def batched_field(y: jax.Array) -> jax.Array:
+        return jnp.stack([M @ y for M in generators], axis=0)
+
+    bracket_functions = form_bck_bracket_functions(batched_field, hopf)
 
     y0 = build_block_initial_state(dim)
     path = build_two_point_path(delta, dim)
