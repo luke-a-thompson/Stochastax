@@ -7,7 +7,7 @@ from typing import Callable
 
 from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
-from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_bracket_functions

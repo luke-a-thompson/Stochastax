@@ -8,7 +8,7 @@ from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.control_lifts.branched_signature_ito import compute_planar_branched_signature
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.mkw_lift import form_mkw_bracket_functions
-from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
 from stochastax.manifolds import EuclideanSpace, Sphere
 
 from tests.conftest import _so3_generators

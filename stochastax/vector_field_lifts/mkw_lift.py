@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 from typing import Callable, Optional
 
-from stochastax.hopf_algebras.hopf_algebras import MKWHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
 from stochastax.vector_field_lifts.vector_field_lift_types import (
     MKWBracketFunctions,
 )

@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
-from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
 from stochastax.controls.drivers import bm_driver
 from tests.conftest import generate_brownian_path
 

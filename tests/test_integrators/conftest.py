@@ -10,7 +10,7 @@ from stochastax.control_lifts.branched_signature_ito import (
     compute_planar_branched_signature,
 )
 from stochastax.control_lifts.log_signature import compute_log_signature
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 from typing import Callable
 
 

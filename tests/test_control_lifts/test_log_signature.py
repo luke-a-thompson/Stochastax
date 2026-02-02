@@ -6,7 +6,7 @@ from stochastax.analytics.signature_sizes import (
     get_log_signature_dim,
     get_signature_dim,
 )
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 import signax
 from typing import Literal
 

@@ -7,8 +7,8 @@ from stochastax.vector_field_lifts.vector_field_lift_types import (
     LyndonBrackets,
     LyndonBracketFunctions,
 )
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
-from stochastax.hopf_algebras.free_lie import (
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.bases import (
     build_lyndon_dependency_tables,
     commutator,
 )

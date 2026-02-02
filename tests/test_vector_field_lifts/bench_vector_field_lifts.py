@@ -9,7 +9,9 @@ import jax.numpy as jnp
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra, ShuffleHopfAlgebra
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 from stochastax.manifolds import EuclideanSpace
 from stochastax.vector_field_lifts.gl_lift import form_gl_bracket_functions
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_bracket_functions

@@ -8,7 +8,7 @@ from stochastax.controls.drivers import bm_driver
 from stochastax.controls.augmentations import non_overlapping_windower
 from stochastax.controls.paths_types import Path
 from stochastax.control_lifts.log_signature import compute_log_signature
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 from stochastax.vector_field_lifts.lie_lift import form_lyndon_bracket_functions
 from stochastax.integrators.log_ode import log_ode
 from stochastax.manifolds import Sphere

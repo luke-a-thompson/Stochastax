@@ -11,7 +11,7 @@
 import jax
 from typing import NewType, Protocol, Callable
 
-from stochastax.hopf_algebras.hopf_algebras import HopfAlgebraT
+from stochastax.hopf_algebras.hopf_algebra_types import HopfAlgebraT
 from stochastax.manifolds import Manifold, EuclideanSpace
 
 # Bracket matrices are per-degree lists, mirroring signature inputs.

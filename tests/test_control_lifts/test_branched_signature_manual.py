@@ -5,7 +5,8 @@ from stochastax.control_lifts.branched_signature_ito import (
     compute_nonplanar_branched_signature,
     compute_planar_branched_signature,
 )
-from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
 from stochastax.controls.drivers import bm_driver
 
 

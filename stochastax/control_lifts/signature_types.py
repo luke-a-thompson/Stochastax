@@ -2,7 +2,7 @@ from typing import NewType, Protocol, Literal
 from stochastax.hopf_algebras.elements import GroupElement, LieElement
 
 import jax
-from stochastax.hopf_algebras.hopf_algebras import HopfAlgebraT
+from stochastax.hopf_algebras.hopf_algebra_types import HopfAlgebraT
 
 # Backward-compatibility type names, now as newtypes over the new element classes.
 # Runtime representation remains GroupElement/LieElement.

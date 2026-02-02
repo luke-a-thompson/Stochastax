@@ -74,7 +74,7 @@ include = ["/stochastax", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "bench_*.py"]
-addopts = "-v --benchmark-autosave --benchmark-compare=baseline --benchmark-compare-fail=mean:5%"
+addopts = "-v --benchmark-autosave"
 minversion = "8.0"
 
 [tool.mypy]

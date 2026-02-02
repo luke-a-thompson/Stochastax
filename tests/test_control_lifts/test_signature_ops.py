@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 from stochastax.control_lifts.path_signature import compute_path_signature
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 
 
 @pytest.mark.parametrize("scalar_path_fixture", [(1, 20), (2, 30)], indirect=True)

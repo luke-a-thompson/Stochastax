@@ -1,11 +1,9 @@
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.hopf_algebras.hopf_algebras import (
-    GLHopfAlgebra,
-    MKWHopfAlgebra,
-    ShuffleHopfAlgebra,
-)
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 from tests.conftest import BENCH_GL_CASES, BENCH_MKW_CASES, BENCH_SHUFFLE_CASES
 
 

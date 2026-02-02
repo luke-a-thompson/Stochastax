@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
-from stochastax.hopf_algebras.bck_trees import enumerate_bck_trees
-from stochastax.hopf_algebras.mkw_trees import enumerate_mkw_trees
+from stochastax.hopf_algebras.bases import enumerate_bck_trees
+from stochastax.hopf_algebras.bases import enumerate_mkw_trees
 from tests.conftest import benchmark_wrapper
 
 

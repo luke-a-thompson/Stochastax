@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from stochastax.tensor_ops import restricted_tensor_exp, seq_tensor_product
 from typing import Literal, overload
 from functools import partial
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 from stochastax.control_lifts.signature_types import PathSignature
 from stochastax.hopf_algebras.elements import GroupElement
 

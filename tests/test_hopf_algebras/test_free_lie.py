@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from pytest_benchmark.fixture import BenchmarkFixture
 
-from stochastax.hopf_algebras.free_lie import (
+from stochastax.hopf_algebras.bases import (
     commutator,
     enumerate_lyndon_basis,
 )

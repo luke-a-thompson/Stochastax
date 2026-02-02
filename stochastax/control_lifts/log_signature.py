@@ -3,10 +3,10 @@ import jax
 from stochastax.control_lifts.path_signature import compute_path_signature
 from typing import Literal, overload
 import jax.numpy as jnp
-from stochastax.hopf_algebras.free_lie import enumerate_lyndon_basis
+from stochastax.hopf_algebras.bases import enumerate_lyndon_basis
 from stochastax.hopf_algebras.elements import LieElement
 from stochastax.control_lifts.signature_types import PathSignature, LogSignature
-from stochastax.hopf_algebras.hopf_algebras import ShuffleHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 
 
 @overload

@@ -5,7 +5,7 @@ from jax.scipy.linalg import expm as jexpm
 
 from stochastax.integrators.log_ode import log_ode
 from stochastax.vector_field_lifts.gl_lift import form_gl_bracket_functions
-from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
 from stochastax.control_lifts.branched_signature_ito import compute_nonplanar_branched_signature
 
 from tests.test_integrators.conftest import (

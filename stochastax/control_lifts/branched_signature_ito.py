@@ -5,7 +5,9 @@ from typing import Literal, overload, cast
 import jax
 import jax.numpy as jnp
 
-from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra, GLHopfAlgebra, MKWHopfAlgebra
+from stochastax.hopf_algebras.hopf_algebra_types import HopfAlgebra
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
 from stochastax.hopf_algebras.elements import GroupElement
 from stochastax.control_lifts.signature_types import BCKSignature, MKWSignature
 
@@ -16,11 +18,11 @@ def _zero_coeffs_from_hopf(hopf: HopfAlgebra, depth: int, dtype: jnp.dtype) -> l
 
 def local_ito_character(
     delta_x: jax.Array,
-    cov: jax.Array | None,
+    cov: jax.Array,
     depth: int,
     hopf: GLHopfAlgebra | MKWHopfAlgebra,
     extra: dict[int, float] | None = None,
-) -> list[jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
     """Build per-step infinitesimal character for Itô branched signature.
 
     Notes:
@@ -34,23 +36,26 @@ def local_ito_character(
         raise ValueError("depth must equal hopf.depth")
     d = hopf.ambient_dimension
     dtype = delta_x.dtype
-    out = _zero_coeffs_from_hopf(hopf, depth, dtype)
+    x1 = jnp.zeros((hopf.basis_size(0),), dtype=dtype)
+    x2 = (
+        jnp.zeros((hopf.basis_size(1),), dtype=dtype) if depth >= 2 else jnp.zeros((0,), dtype=dtype)
+    )
 
     # Degree 1: single-node tree with colour i gets delta_x[i]
     # We assume shape-major, then colour-lexicographic layout; colours for shape 0 occupy indices 0..d-1.
-    out[0] = out[0].at[jnp.arange(d)].set(delta_x)
+    x1 = x1.at[jnp.arange(d)].set(delta_x)
 
     # Degree 2: Itô correction on chain-of-length-2
-    if depth >= 2 and cov is not None:
+    if depth >= 2:
         if hopf.degree2_chain_indices is None:
             raise ValueError("Degree-2 chain indices not available in Hopf algebra.")
         idx = hopf.degree2_chain_indices  # shape (d, d) of flattened indices
-        updates = jnp.zeros_like(out[1])
+        updates = jnp.zeros_like(x2)
         # Inject Sym(cov) into the chain coordinates.
         cov_sym = 0.5 * (cov + jnp.swapaxes(cov, -1, -2))
         cov_term = cov_sym
         updates = updates.at[idx].set(cov_term)
-        out[1] = updates
+        x2 = updates
 
     # Degree >= 3: optional overrides (sparse)
     if extra:
@@ -58,7 +63,20 @@ def local_ito_character(
         # For safety, we ignore extras unless future extensions provide per-degree maps.
         pass
 
-    return out
+    return x1, x2
+
+
+def _deg12_character_to_levels(
+    x1: jax.Array,
+    x2: jax.Array,
+    depth: int,
+    hopf: GLHopfAlgebra | MKWHopfAlgebra,
+) -> list[jax.Array]:
+    levels = [jnp.zeros((hopf.basis_size(i),), dtype=x1.dtype) for i in range(depth)]
+    levels[0] = x1
+    if depth >= 2:
+        levels[1] = x2
+    return levels
 
 
 def _branched_signature_ito_impl(
@@ -66,7 +84,7 @@ def _branched_signature_ito_impl(
     depth: int,
     hopf: GLHopfAlgebra | MKWHopfAlgebra,
     mode: Literal["full", "stream", "incremental"],
-    cov_increments: jax.Array | None = None,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = None,
 ) -> list[jax.Array] | list[list[jax.Array]]:
     """Compute the Itô branched signature along a sampled path (shared implementation).
@@ -94,16 +112,14 @@ def _branched_signature_ito_impl(
     dtype = path.dtype
     if higher_local_moments is None and mode in ("full", "stream"):
         deltas = path[1:] - path[:-1]
-        if cov_increments is None:
-            covs = jnp.zeros((T - 1, d, d), dtype=dtype)
-        else:
-            covs = cov_increments
+        covs = cov_increments
 
         def step(
             carry: list[jax.Array], inputs: tuple[jax.Array, jax.Array]
         ) -> tuple[list[jax.Array], list[jax.Array]]:
             delta_x, cov = inputs
-            a_k = local_ito_character(delta_x, cov, depth, hopf, extra=None)
+            x1, x2 = local_ito_character(delta_x, cov, depth, hopf, extra=None)
+            a_k = _deg12_character_to_levels(x1, x2, depth, hopf)
             step_sig = hopf.exp(a_k)
             next_sig = hopf.product(carry, step_sig)
             return next_sig, next_sig
@@ -120,9 +136,10 @@ def _branched_signature_ito_impl(
 
     def _compute_step(k: int) -> list[jax.Array]:
         delta_x = path[k + 1] - path[k]
-        cov = cov_increments[k] if cov_increments is not None else None
+        cov = cov_increments[k]
         extra = higher_local_moments[k] if higher_local_moments is not None else None
-        a_k = local_ito_character(delta_x, cov, depth, hopf, extra)
+        x1, x2 = local_ito_character(delta_x, cov, depth, hopf, extra)
+        a_k = _deg12_character_to_levels(x1, x2, depth, hopf)
         return hopf.exp(a_k)
 
     match mode:
@@ -144,7 +161,7 @@ def compute_planar_branched_signature(
     depth: int,
     hopf: MKWHopfAlgebra,
     mode: Literal["full"],
-    cov_increments: jax.Array | None = ...,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> MKWSignature: ...
@@ -156,7 +173,7 @@ def compute_planar_branched_signature(
     depth: int,
     hopf: MKWHopfAlgebra,
     mode: Literal["stream", "incremental"],
-    cov_increments: jax.Array | None = ...,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> list[MKWSignature]: ...
@@ -167,7 +184,7 @@ def compute_planar_branched_signature(
     depth: int,
     hopf: MKWHopfAlgebra,
     mode: Literal["full", "stream", "incremental"],
-    cov_increments: jax.Array | None = None,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = None,
     index_start: int = 0,
 ) -> MKWSignature | list[MKWSignature]:
@@ -225,7 +242,7 @@ def compute_nonplanar_branched_signature(
     depth: int,
     hopf: GLHopfAlgebra,
     mode: Literal["full"],
-    cov_increments: jax.Array | None = ...,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> BCKSignature: ...
@@ -237,7 +254,7 @@ def compute_nonplanar_branched_signature(
     depth: int,
     hopf: GLHopfAlgebra,
     mode: Literal["stream", "incremental"],
-    cov_increments: jax.Array | None = ...,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = ...,
     index_start: int = ...,
 ) -> list[BCKSignature]: ...
@@ -248,7 +265,7 @@ def compute_nonplanar_branched_signature(
     depth: int,
     hopf: GLHopfAlgebra,
     mode: Literal["full", "stream", "incremental"],
-    cov_increments: jax.Array | None = None,
+    cov_increments: jax.Array,
     higher_local_moments: list[dict[int, float]] | None = None,
     index_start: int = 0,
 ) -> BCKSignature | list[BCKSignature]:
@@ -304,7 +321,8 @@ if __name__ == "__main__":
     # Minimal example: compare standard tensor signature with branched Itô signature (m=2).
     import jax.numpy as jnp
     from stochastax.control_lifts.path_signature import compute_path_signature
-    from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, ShuffleHopfAlgebra
+    from stochastax.hopf_algebras.gl import GLHopfAlgebra
+    from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 
     # Build a simple 2D path
     path = jnp.array(

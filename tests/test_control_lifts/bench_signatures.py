@@ -9,7 +9,9 @@ from stochastax.control_lifts.branched_signature_ito import (
     compute_planar_branched_signature,
 )
 from stochastax.control_lifts.log_signature import compute_log_signature, compute_path_signature
-from stochastax.hopf_algebras.hopf_algebras import GLHopfAlgebra, MKWHopfAlgebra, ShuffleHopfAlgebra
+from stochastax.hopf_algebras.gl import GLHopfAlgebra
+from stochastax.hopf_algebras.mkw import MKWHopfAlgebra
+from stochastax.hopf_algebras.shuffle import ShuffleHopfAlgebra
 import signax
 from tests.conftest import (
     BENCH_GL_CASES,
@@ -114,6 +116,11 @@ def test_bck_signature_benchmark(
     key = jax.random.PRNGKey(5)
     path = generate_brownian_path(key, dim, num_timesteps)
     hopf = GLHopfAlgebra.build(dim, depth)
+    # For Brownian motion with dt = 1/num_steps, the quadratic-variation increment is Δ⟨W⟩ = dt * I.
+    dt = jnp.asarray(1.0 / float(num_timesteps), dtype=path.dtype)
+    cov_increments = jnp.broadcast_to(
+        jnp.eye(dim, dtype=path.dtype) * dt, (path.shape[0] - 1, dim, dim)
+    )
 
     def _bck_full_signature(x: jax.Array) -> jax.Array:
         sig = compute_nonplanar_branched_signature(
@@ -121,6 +128,7 @@ def test_bck_signature_benchmark(
             depth=depth,
             hopf=hopf,
             mode="full",
+            cov_increments=cov_increments,
         )
         return sig.flatten()
 
@@ -142,6 +150,11 @@ def test_mkw_signature_benchmark(
     key = jax.random.PRNGKey(9)
     path = generate_brownian_path(key, dim, num_timesteps)
     hopf = MKWHopfAlgebra.build(dim, depth)
+    # For Brownian motion with dt = 1/num_steps, the quadratic-variation increment is Δ⟨W⟩ = dt * I.
+    dt = jnp.asarray(1.0 / float(num_timesteps), dtype=path.dtype)
+    cov_increments = jnp.broadcast_to(
+        jnp.eye(dim, dtype=path.dtype) * dt, (path.shape[0] - 1, dim, dim)
+    )
 
     def _mkw_full_signature(x: jax.Array) -> jax.Array:
         sig = compute_planar_branched_signature(
@@ -149,6 +162,7 @@ def test_mkw_signature_benchmark(
             depth=depth,
             hopf=hopf,
             mode="full",
+            cov_increments=cov_increments,
         )
         return sig.flatten()
 

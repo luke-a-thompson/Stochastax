@@ -6,7 +6,7 @@ Public API:
 - Vector field brackets: LyndonBrackets, GLBrackets
 """
 
-from stochastax.hopf_algebras.hopf_algebras import HopfAlgebra
+from stochastax.hopf_algebras.hopf_algebra_types import HopfAlgebra
 from stochastax.control_lifts.signature_types import Signature, PrimitiveSignature, ControlLift
 
 __all__ = [
