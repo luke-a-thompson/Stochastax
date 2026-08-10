@@ -1,5 +1,5 @@
 ## Warning
-This library is gradually being deprecated in favor of [Georax](https://github.com/luke-a-thompson/georax) & [Roughrax](https://github.com/luke-a-thompson/roughrax).
+This library is deprecated in favor of [Georax](https://github.com/luke-a-thompson/georax) & [Roughrax](https://github.com/luke-a-thompson/roughrax).
 
 # Stochastax
 
